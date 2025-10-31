@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.venv/
+build/
+dist/
+logs/
+dmg_staging/
+CalmChimp.spec
+*.dmg
+*.log

@@ -1,0 +1,42 @@
+from __future__ import annotations
+
+import argparse
+
+from .services.http import run_local_server
+from .services.mcp import run_mcp_server
+from .ui import run_gui
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Calm Chimp command line interface.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    subparsers.add_parser("gui", help="Launch the PyQt GUI.")
+
+    api_parser = subparsers.add_parser("api", help="Run the FastAPI HTTP server.")
+    api_parser.add_argument("--host", default="127.0.0.1")
+    api_parser.add_argument("--port", type=int, default=8000)
+
+    mcp_parser = subparsers.add_parser("mcp", help="Run the FastMCP streamable HTTP server.")
+    mcp_parser.add_argument("--host", default="127.0.0.1")
+    mcp_parser.add_argument("--port", type=int, default=8765)
+
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+
+    if args.command == "gui":
+        run_gui()
+    elif args.command == "api":
+        run_local_server(host=args.host, port=args.port)
+    elif args.command == "mcp":
+        run_mcp_server(host=args.host, port=args.port)
+    else:  # pragma: no cover - argparse prevents this path
+        parser.print_help()
+
+
+if __name__ == "__main__":
+    main()

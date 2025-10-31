@@ -1,0 +1,63 @@
+[tool.poetry]
+name = "calm-chimp"
+version = "0.1.0"
+description = "Calm Chimp desktop planner with PyQt GUI, LangGraph agent, MCP tools, and deterministic API layer."
+authors = ["Aman Singh <aman@example.com>"]
+readme = "README.md"
+packages = [{ include = "calm_chimp", from = "src" }]
+license = "Proprietary"
+
+[tool.poetry.scripts]
+calm-chimp = "calm_chimp.cli:main"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pyqt6 = "^6.6.1"
+langchain-core = "^0.2.24"
+langchain-community = "^0.2.10"
+langgraph = "0.0.69"
+fastmcp = "^2.13.0"
+fastapi = "^0.111.0"
+orjson = "^3.10.3"
+pydantic = "^2.12.3"
+hypercorn = "^0.17.3"
+platformdirs = "^4.3.6"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.2"
+briefcase = "^0.3.18"
+
+[tool.briefcase]
+project_name = "Calm Chimp"
+bundle = "com.calmchimp"
+version = "0.1.0"
+url = "https://example.com/calm-chimp"
+license = { text = "Proprietary" }
+author = "Aman Singh"
+author_email = "aman@example.com"
+
+[tool.briefcase.app.calm_chimp]
+formal_name = "Calm Chimp"
+description = "AI-powered study planner with PyQt GUI, MCP tools, and deterministic calendar API."
+main_module = "calm_chimp.__main__"
+sources = ["src/calm_chimp"]
+requires = [
+  "pyqt6>=6.6",
+  "langchain-core>=0.2.24,<0.3.0",
+  "langchain-community>=0.2.10,<0.3.0",
+  "langgraph==0.0.69",
+  "fastmcp>=2.13,<3.0",
+  "fastapi>=0.111,<0.112",
+  "hypercorn>=0.17,<0.18",
+  "orjson>=3.10,<3.11",
+  "pydantic>=2.12,<3.0",
+  "platformdirs>=4.3,<5.0"
+]
+
+[tool.briefcase.app.calm_chimp.macOS]
+requires = []
+universal_build = false
+
+[build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"
