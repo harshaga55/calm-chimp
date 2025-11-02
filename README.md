@@ -52,6 +52,22 @@ curl -X POST http://127.0.0.1:8000/api/functions/list_pending_tasks_ordered_by_d
 
 Use `GET /api/functions` to discover all available deterministic API calls.
 
+### Azure OpenAI Configuration
+
+Copy `.env.example` to `.env` and populate your Azure resource details:
+
+```bash
+cp .env.example .env
+```
+
+Required values:
+
+- `AZURE_OPENAI_ENDPOINT`: e.g. `https://your-instance.openai.azure.com/`
+- `AZURE_OPENAI_API_KEY`: the key from your Azure OpenAI resource
+- `AZURE_OPENAI_DEPLOYMENT`: deployment name (defaults to `gpt-4o` in the example)
+
+When these variables are present the in-app chatbot will call your Azure-hosted model to decide which Calm Chimp API function (and MCP tool) to invoke. Leave them unset to fall back to local heuristics and slash commands.
+
 ### macOS App Bundle & DMG (Briefcase)
 
 ```bash

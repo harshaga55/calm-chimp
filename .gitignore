@@ -1,11 +1,32 @@
+# Byte-compiled / cache
 __pycache__/
 *.py[cod]
-.DS_Store
-.venv/
+*.so
+
+# Distribution / packaging
 build/
 dist/
-logs/
-dmg_staging/
-CalmChimp.spec
-*.dmg
+*.egg-info/
+*.spec
+
+# Virtual environments
+.venv/
+venv/
+
+# Logs / reports
 *.log
+
+# macOS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Local runtime state
+.env
+.env.*
+data/tasks.json
+dmg_staging/
+
+# Generated artifacts
+*.dmg
+dist/**

@@ -22,6 +22,7 @@ orjson = "^3.10.3"
 pydantic = "^2.12.3"
 hypercorn = "^0.17.3"
 platformdirs = "^4.3.6"
+openai = "^1.45.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"

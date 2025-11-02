@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import sys
+import json
 from datetime import date
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Dict, List
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QTextCursor
@@ -28,6 +29,7 @@ from PyQt6.QtWidgets import (
 
 from ..api import call_api
 from ..core import APP_NAME, ensure_data_dir
+from ..llm import ChatOrchestrator
 
 
 class CalendarTab(QWidget):
@@ -206,12 +208,16 @@ class ChatPanel(QWidget):
         "/pending – list pending tasks\n"
         "/overdue – list overdue tasks\n"
         "/today – list tasks due today\n"
-        "/history – show recent history"
+        "/history – show recent history\n"
+        "Natural questions are routed through your Azure OpenAI deployment when configured."
     )
 
     def __init__(self, refresher: Callable[[], None]) -> None:
         super().__init__()
         self.refresher = refresher
+        self.orchestrator = ChatOrchestrator()
+        self.history: List[Dict[str, str]] = []
+
         layout = QVBoxLayout()
 
         self.conversation = QTextEdit()
@@ -219,7 +225,7 @@ class ChatPanel(QWidget):
         layout.addWidget(self.conversation)
 
         self.input_line = QLineEdit()
-        self.input_line.setPlaceholderText("Type a command, e.g., /plan subject=... ")
+        self.input_line.setPlaceholderText("Ask Calm Chimp or type /help for commands")
         layout.addWidget(self.input_line)
 
         send_button = QPushButton("Send")
@@ -243,7 +249,10 @@ class ChatPanel(QWidget):
             return
         self.input_line.clear()
         self._append_user_message(text)
-        self._handle_command(text)
+        if text.startswith("/"):
+            self._handle_command(text)
+        else:
+            self._handle_freeform(text)
 
     def _handle_command(self, text: str) -> None:
         if text.lower() in {"/help", "help"}:
@@ -319,6 +328,34 @@ class ChatPanel(QWidget):
         )
         self._append_bot_message(f"Planned {len(result['tasks'])} tasks for {subject}.")
         self.refresher()
+
+    def _handle_freeform(self, text: str) -> None:
+        orchestration = self.orchestrator.orchestrate(self.history.copy(), text)
+        self.history.append({"role": "user", "content": text})
+
+        assistant_parts: List[str] = []
+        if orchestration.messages:
+            assistant_parts.extend(orchestration.messages)
+
+        if orchestration.tool_name:
+            try:
+                tool_result = call_api(orchestration.tool_name, **orchestration.arguments)
+                formatted = json.dumps(tool_result, indent=2)
+                assistant_parts.append(
+                    f"Called `{orchestration.tool_name}` with {orchestration.arguments or {}}.\n{formatted}"
+                )
+                self.refresher()
+            except Exception as exc:  # noqa: BLE001
+                assistant_parts.append(f"Failed to execute `{orchestration.tool_name}`: {exc}")
+
+        assistant_text = "\n\n".join(part for part in assistant_parts if part)
+        if assistant_text:
+            self._append_bot_message(assistant_text)
+            self.history.append({"role": "assistant", "content": assistant_text})
+        else:
+            fallback = "I could not process that request."
+            self._append_bot_message(fallback)
+            self.history.append({"role": "assistant", "content": fallback})
 
 
 class MainWindow(QMainWindow):
