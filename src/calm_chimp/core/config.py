@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from platformdirs import user_data_dir
 
@@ -14,6 +15,11 @@ DEFAULT_DATABASE_CONTENT = {
     "history": [],
     "metadata": {"schema_version": 1},
 }
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_REDIRECT_PORT = int(os.getenv("SUPABASE_REDIRECT_PORT", "52151"))
 
 
 def ensure_data_dir() -> None:

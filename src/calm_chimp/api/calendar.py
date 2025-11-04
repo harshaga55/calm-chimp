@@ -3,10 +3,10 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Dict, List
 
-from ..core import JsonDatabase, distribute_plan
+from ..core import SupabaseDatabase, distribute_plan
 from .registry import register_api
 
-database = JsonDatabase()
+database = SupabaseDatabase()
 
 
 def _parse_day(day: str) -> date:

@@ -23,6 +23,7 @@ pydantic = "^2.12.3"
 hypercorn = "^0.17.3"
 platformdirs = "^4.3.6"
 openai = "^1.45.0"
+supabase = "^2.4.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"

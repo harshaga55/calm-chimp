@@ -10,13 +10,16 @@ from ..api import get_api_functions
 from ..settings import get_settings
 
 
-_SYSTEM_PROMPT = (
+_SYSTEM_PROMPT_TEMPLATE = (
     "You are the Calm Chimp assistant. Always respond with a JSON object. "
     "If the user request maps to one of the provided tools, respond with:\n"
-    '{"type": "tool", "tool_name": "...", "arguments": {...}, "assistant_message": "..."}.\n'
+    '{{"type": "tool", "tool_name": "...", "arguments": {{}}, "assistant_message": "..."}}.\n'
     "Otherwise respond with:\n"
-    '{"type": "message", "assistant_message": "..."}.\n'
-    "Available tool names: {tool_names}. Use deterministic, concise arguments."
+    '{{"type": "message", "assistant_message": "..."}}.\n'
+    "Available deterministic tools (name, description, parameters):\n{tool_catalog}\n"
+    "Only call tools you are confident match the request. Prefer calling a tool once with best-effort values instead of asking the user "
+    "for more details. When information is missing, choose sensible defaults (use the default calendar, assume a 60 minute duration, "
+    "pick the next reasonable date/time) and mention any assumptions in `assistant_message`. Keep arguments minimal and well-typed."
 )
 
 
@@ -36,7 +39,17 @@ class ChatOrchestrator:
     def __init__(self) -> None:
         self.settings = get_settings()
         self._client: Optional[AzureOpenAI] = None
-        self._tool_names = {func.name for func in get_api_functions()}
+        self._tool_specs = sorted(get_api_functions(), key=lambda func: func.name)
+        self._tool_names = {func.name for func in self._tool_specs}
+        tool_catalog = [
+            {
+                "name": func.name,
+                "description": func.description,
+                "parameters": func.parameters,
+            }
+            for func in self._tool_specs
+        ]
+        self._system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(tool_catalog=json.dumps(tool_catalog, indent=2))
 
     def _ensure_client(self) -> Optional[AzureOpenAI]:
         if not self.settings.azure_openai.is_configured:
@@ -51,6 +64,16 @@ class ChatOrchestrator:
         return self._client
 
     def orchestrate(self, history: List[Dict[str, str]], user_message: str) -> ChatOrchestrationResult:
+        if not self.settings.azure_openai.is_configured:
+            missing = ", ".join(self.settings.azure_openai.missing_env_vars)
+            info = (
+                "Azure OpenAI is not configured. "
+                f"Set these environment variables to enable tool-aware chat: {missing or 'unknown'}."
+            )
+            fallback = self._keyword_fallback(user_message)
+            fallback.messages.insert(0, info)
+            return fallback
+
         client = self._ensure_client()
         if client is None:
             return self._keyword_fallback(user_message)
@@ -61,12 +84,14 @@ class ChatOrchestrator:
                 model=self.settings.azure_openai.deployment,
                 temperature=0.2,
                 messages=[
-                    {"role": "system", "content": _SYSTEM_PROMPT.format(tool_names=sorted(self._tool_names))},
+                    {"role": "system", "content": self._system_prompt},
                     *messages,
                 ],
             )
-        except Exception:  # noqa: BLE001
-            return self._keyword_fallback(user_message)
+        except Exception as exc:  # noqa: BLE001
+            fallback = self._keyword_fallback(user_message)
+            fallback.messages.insert(0, f"Azure OpenAI request failed: {exc}")
+            return fallback
 
         choice = completion.choices[0].message.content or ""
         return self._parse_choice(choice)
@@ -84,6 +109,8 @@ class ChatOrchestrator:
                 arguments = payload.get("arguments") or {}
                 if not isinstance(arguments, dict):
                     arguments = {}
+                if not message:
+                    message = f"I'll use `{tool_name}` to handle that."
                 return ChatOrchestrationResult(
                     messages=[message] if message else [],
                     tool_name=tool_name,

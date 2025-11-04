@@ -4,36 +4,54 @@ import sys
 import json
 from datetime import date
 from pathlib import Path
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QTextCursor
+from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtWidgets import (
     QApplication,
     QFileDialog,
     QHBoxLayout,
+    QDialog,
     QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSplitter,
+    QStyle,
     QTabWidget,
     QTextEdit,
+    QToolButton,
     QVBoxLayout,
     QWidget,
     QCalendarWidget,
+    QFrame,
+    QMessageBox,
 )
 
 from ..api import call_api
-from ..core import APP_NAME, ensure_data_dir
+from ..core import (
+    APP_NAME,
+    SUPABASE_ANON_KEY,
+    SUPABASE_URL,
+    ensure_data_dir,
+    get_supabase_session,
+    supabase_ready,
+)
 from ..llm import ChatOrchestrator
+from ..logging import configure_logging
+from .auth_dialog import LoginDialog
+
+
+configure_logging()
 
 
 class CalendarTab(QWidget):
-    def __init__(self, refresher: Callable[[], None]) -> None:
+    def __init__(self, refresher: Callable[[Optional[str]], None]) -> None:
         super().__init__()
         self.refresher = refresher
         layout = QVBoxLayout()
@@ -51,9 +69,13 @@ class CalendarTab(QWidget):
     def _selected_date(self) -> str:
         return self.calendar.selectedDate().toString("yyyy-MM-dd")
 
-    def refresh_day(self) -> None:
-        day = self._selected_date()
-        result = call_api("calendar_tasks_for_day", day=day)
+    def refresh_day(self, day: Optional[str] = None) -> None:
+        if day:
+            qdate = QDate.fromString(day, "yyyy-MM-dd")
+            if qdate.isValid():
+                self.calendar.setSelectedDate(qdate)
+        target_day = self._selected_date()
+        result = call_api("calendar_tasks_for_day", day=target_day)
         self.task_list.clear()
         for task in result["tasks"]:
             display = f"[{task['status'].upper()}] {task['subject']} — {task['title']} (Due {task['due_date']})"
@@ -72,7 +94,7 @@ class CalendarTab(QWidget):
 
 
 class ActivityTab(QWidget):
-    def __init__(self, refresher: Callable[[], None]) -> None:
+    def __init__(self, refresher: Callable[[Optional[str]], None]) -> None:
         super().__init__()
         self.refresher = refresher
         layout = QVBoxLayout()
@@ -108,7 +130,7 @@ class ActivityTab(QWidget):
 
 
 class PlannerTab(QWidget):
-    def __init__(self, refresher: Callable[[], None]) -> None:
+    def __init__(self, refresher: Callable[[Optional[str]], None]) -> None:
         super().__init__()
         self.refresher = refresher
         layout = QVBoxLayout()
@@ -201,6 +223,64 @@ class PlannerTab(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to load file: {exc}")
 
 
+class ChatMessageWidget(QFrame):
+    def __init__(
+        self,
+        role: str,
+        text: str,
+        detail_title: Optional[str] = None,
+        details: Optional[str] = None,
+    ) -> None:
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
+
+        bubble = QLabel(text)
+        bubble.setWordWrap(True)
+        bubble.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(bubble)
+
+        if role == "user":
+            palette = "#e3f2fd"
+            text_color = "#0d47a1"
+        else:
+            palette = "#f1f8e9"
+            text_color = "#1b5e20"
+
+        self.setStyleSheet(
+            f"QFrame {{ background-color: {palette}; border-radius: 12px; }}"
+            f"QLabel {{ color: {text_color}; font-size: 14px; }}"
+        )
+
+        self.details_widget: Optional[QPlainTextEdit] = None
+        self.toggle_button: Optional[QToolButton] = None
+
+        if details:
+            self.toggle_button = QToolButton()
+            self.toggle_button.setCheckable(True)
+            self.toggle_button.setArrowType(Qt.ArrowType.RightArrow)
+            self.toggle_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            self.toggle_button.setText(detail_title or "Details")
+            self.toggle_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            layout.addWidget(self.toggle_button, alignment=Qt.AlignmentFlag.AlignRight)
+
+            self.details_widget = QPlainTextEdit()
+            self.details_widget.setReadOnly(True)
+            self.details_widget.setPlainText(details)
+            self.details_widget.setMaximumHeight(180)
+            self.details_widget.hide()
+            layout.addWidget(self.details_widget)
+
+            self.toggle_button.toggled.connect(self._toggle_details)
+
+    def _toggle_details(self, checked: bool) -> None:
+        if not self.details_widget or not self.toggle_button:
+            return
+        self.details_widget.setVisible(checked)
+        self.toggle_button.setArrowType(Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow)
+
+
 class ChatPanel(QWidget):
     HELP_TEXT = (
         "Commands:\n"
@@ -209,10 +289,11 @@ class ChatPanel(QWidget):
         "/overdue – list overdue tasks\n"
         "/today – list tasks due today\n"
         "/history – show recent history\n"
+        "/tools – list available MCP tools\n"
         "Natural questions are routed through your Azure OpenAI deployment when configured."
     )
 
-    def __init__(self, refresher: Callable[[], None]) -> None:
+    def __init__(self, refresher: Callable[[Optional[str]], None]) -> None:
         super().__init__()
         self.refresher = refresher
         self.orchestrator = ChatOrchestrator()
@@ -220,28 +301,78 @@ class ChatPanel(QWidget):
 
         layout = QVBoxLayout()
 
-        self.conversation = QTextEdit()
-        self.conversation.setReadOnly(True)
-        layout.addWidget(self.conversation)
+        self.conversation_area = QScrollArea()
+        self.conversation_area.setWidgetResizable(True)
+        self.conversation_container = QWidget()
+        self.conversation_layout = QVBoxLayout(self.conversation_container)
+        self.conversation_layout.setContentsMargins(12, 12, 12, 12)
+        self.conversation_layout.setSpacing(12)
+        self.conversation_layout.addStretch()
+        self.conversation_area.setWidget(self.conversation_container)
+        layout.addWidget(self.conversation_area)
 
         self.input_line = QLineEdit()
         self.input_line.setPlaceholderText("Ask Calm Chimp or type /help for commands")
+        self.input_line.returnPressed.connect(self.handle_send)
         layout.addWidget(self.input_line)
 
-        send_button = QPushButton("Send")
-        send_button.clicked.connect(self.handle_send)
-        layout.addWidget(send_button)
+        controls = QHBoxLayout()
+        controls.addStretch()
+        self.send_button = QToolButton()
+        self.send_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowForward))
+        self.send_button.clicked.connect(self.handle_send)
+        controls.addWidget(self.send_button)
+
+        self.status_label = QLabel("")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        controls.addWidget(self.status_label)
+
+        layout.addLayout(controls)
 
         self.setLayout(layout)
         self._append_bot_message("Hello! Use /plan or type /help to see commands.")
 
     def _append_user_message(self, message: str) -> None:
-        self.conversation.append(f"<b>You:</b> {message}")
-        self.conversation.moveCursor(QTextCursor.MoveOperation.End)
+        self._append_message("user", message)
 
-    def _append_bot_message(self, message: str) -> None:
-        self.conversation.append(f"<b>Calm Chimp:</b> {message}")
-        self.conversation.moveCursor(QTextCursor.MoveOperation.End)
+    def _append_bot_message(
+        self,
+        message: str,
+        details: Optional[str] = None,
+        detail_title: Optional[str] = None,
+    ) -> None:
+        self._append_message("assistant", message, details, detail_title)
+
+    def _append_message(
+        self,
+        role: str,
+        text: str,
+        details: Optional[str] = None,
+        detail_title: Optional[str] = None,
+    ) -> None:
+        # remove trailing stretch
+        stretch_item = self.conversation_layout.takeAt(self.conversation_layout.count() - 1)
+
+        bubble = ChatMessageWidget(role, text, detail_title, details)
+        wrapper = QWidget()
+        wrapper_layout = QHBoxLayout(wrapper)
+        wrapper_layout.setContentsMargins(0, 0, 0, 0)
+        wrapper_layout.setSpacing(0)
+
+        if role == "user":
+            wrapper_layout.addStretch()
+            wrapper_layout.addWidget(bubble, alignment=Qt.AlignmentFlag.AlignRight)
+        else:
+            wrapper_layout.addWidget(bubble, alignment=Qt.AlignmentFlag.AlignLeft)
+            wrapper_layout.addStretch()
+
+        self.conversation_layout.addWidget(wrapper)
+        if stretch_item:
+            self.conversation_layout.addItem(stretch_item)
+
+        QApplication.processEvents()
+        scrollbar = self.conversation_area.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
 
     def handle_send(self) -> None:
         text = self.input_line.text().strip()
@@ -249,10 +380,26 @@ class ChatPanel(QWidget):
             return
         self.input_line.clear()
         self._append_user_message(text)
-        if text.startswith("/"):
-            self._handle_command(text)
-        else:
-            self._handle_freeform(text)
+        self._set_busy(True)
+        try:
+            if text.startswith("/"):
+                self._handle_command(text)
+            else:
+                self._handle_freeform(text)
+        finally:
+            self._set_busy(False)
+
+    def _set_busy(self, busy: bool) -> None:
+        self.input_line.setDisabled(busy)
+        self.send_button.setDisabled(busy)
+        icon = (
+            self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
+            if busy
+            else self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowForward)
+        )
+        self.send_button.setIcon(icon)
+        self.status_label.setText("Thinking..." if busy else "")
+        QApplication.processEvents()
 
     def _handle_command(self, text: str) -> None:
         if text.lower() in {"/help", "help"}:
@@ -286,6 +433,16 @@ class ChatPanel(QWidget):
             result = call_api("list_recent_history_actions")
             lines = "\n".join(f"- {entry['timestamp']} {entry['action']}" for entry in result["entries"])
             self._append_bot_message(lines or "No history yet.")
+            return
+        if text.lower() == "/tools":
+            result = call_api("list_available_tools")
+            tools = result.get("tools", [])
+            if tools:
+                summary = f"{len(tools)} tool(s) available."
+                details = json.dumps(result, indent=2, ensure_ascii=False)
+                self._append_bot_message(summary, details, detail_title="list_available_tools")
+            else:
+                self._append_bot_message("No tools are currently registered.")
             return
         if text.lower().startswith("/plan"):
             try:
@@ -330,32 +487,106 @@ class ChatPanel(QWidget):
         self.refresher()
 
     def _handle_freeform(self, text: str) -> None:
-        orchestration = self.orchestrator.orchestrate(self.history.copy(), text)
         self.history.append({"role": "user", "content": text})
+        orchestration = self.orchestrator.orchestrate(self.history.copy(), text)
 
-        assistant_parts: List[str] = []
         if orchestration.messages:
-            assistant_parts.extend(orchestration.messages)
+            for message in orchestration.messages:
+                self._append_bot_message(message)
+                self.history.append({"role": "assistant", "content": message})
 
         if orchestration.tool_name:
             try:
-                tool_result = call_api(orchestration.tool_name, **orchestration.arguments)
-                formatted = json.dumps(tool_result, indent=2)
-                assistant_parts.append(
-                    f"Called `{orchestration.tool_name}` with {orchestration.arguments or {}}.\n{formatted}"
+                args_details = json.dumps(orchestration.arguments, indent=2, ensure_ascii=False)
+                self._append_bot_message(
+                    f"I will call `{orchestration.tool_name}` to handle that.",
+                    args_details,
+                    detail_title=orchestration.tool_name,
                 )
-                self.refresher()
-            except Exception as exc:  # noqa: BLE001
-                assistant_parts.append(f"Failed to execute `{orchestration.tool_name}`: {exc}")
 
-        assistant_text = "\n\n".join(part for part in assistant_parts if part)
-        if assistant_text:
-            self._append_bot_message(assistant_text)
-            self.history.append({"role": "assistant", "content": assistant_text})
-        else:
+                tool_result = call_api(orchestration.tool_name, **orchestration.arguments)
+                summary = self._summarize_tool_result(orchestration.tool_name, tool_result)
+                detail_payload = json.dumps(
+                    {"arguments": orchestration.arguments, "result": tool_result},
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                self._append_bot_message(
+                    summary,
+                    detail_payload,
+                    detail_title=f"{orchestration.tool_name} result",
+                )
+                self.history.append({"role": "assistant", "content": summary})
+                focus_date = self._determine_focus_date(orchestration.tool_name, tool_result)
+                self.refresher(focus_date)
+            except Exception as exc:  # noqa: BLE001
+                self._append_bot_message(f"Failed to execute `{orchestration.tool_name}`: {exc}")
+        elif not orchestration.messages:
             fallback = "I could not process that request."
             self._append_bot_message(fallback)
             self.history.append({"role": "assistant", "content": fallback})
+
+    def _summarize_tool_result(self, tool_name: str, result: Dict[str, object]) -> str:
+        if tool_name.startswith("generate_plan"):
+            tasks = result.get("tasks") if isinstance(result, dict) else None
+            if isinstance(tasks, list) and tasks:
+                first_task = tasks[0]
+                subject = first_task.get("subject", "subject")
+                due = first_task.get("due_date", "soon")
+                return f"Created {len(tasks)} study task(s) for {subject}, due {due}."
+            return "Generated a study plan."
+        if tool_name == "schedule_meeting":
+            task = result.get("task") if isinstance(result, dict) else None
+            if isinstance(task, dict):
+                title = task.get("title", "Meeting")
+                due = task.get("due_date", "scheduled date")
+                return f"Scheduled {title} on {due}."
+            return "Scheduled the requested meeting."
+        if tool_name == "list_available_tools":
+            tools = result.get("tools") if isinstance(result, dict) else None
+            count = len(tools) if isinstance(tools, list) else 0
+            return f"Listed {count} available tool(s)."
+        if tool_name.startswith("list_tasks"):
+            tasks = result.get("tasks") if isinstance(result, dict) else None
+            count = len(tasks) if isinstance(tasks, list) else 0
+            return f"Found {count} task(s)."
+        if tool_name.startswith("calendar_tasks"):
+            tasks = result.get("tasks") if isinstance(result, dict) else None
+            count = len(tasks) if isinstance(tasks, list) else 0
+            return f"Retrieved {count} calendar entr{ 'y' if count == 1 else 'ies' }."
+        if tool_name.startswith("list_recent_history"):
+            entries = result.get("entries") if isinstance(result, dict) else None
+            count = len(entries) if isinstance(entries, list) else 0
+            return f"Listed {count} history entr{ 'y' if count == 1 else 'ies' }."
+        return f"`{tool_name}` completed."
+
+    def _determine_focus_date(self, tool_name: str, result: Dict[str, object]) -> Optional[str]:
+        if not isinstance(result, dict):
+            return None
+        if tool_name == "schedule_meeting":
+            task = result.get("task")
+            if isinstance(task, dict):
+                due = task.get("due_date")
+                if isinstance(due, str):
+                    return due
+        if tool_name.startswith("generate_plan"):
+            tasks = result.get("tasks")
+            if isinstance(tasks, list) and tasks:
+                due = tasks[0].get("due_date")
+                if isinstance(due, str):
+                    return due
+        if tool_name in {
+            "update_task_due_date",
+            "reschedule_task_to_today",
+            "reschedule_task_to_tomorrow",
+            "reschedule_task_next_week",
+        }:
+            task = result.get("task")
+            if isinstance(task, dict):
+                due = task.get("due_date")
+                if isinstance(due, str):
+                    return due
+        return None
 
 
 class MainWindow(QMainWindow):
@@ -391,13 +622,29 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(splitter)
 
-    def refresh_all(self) -> None:
-        self.calendar_tab.refresh_day()
+        session = get_supabase_session() if supabase_ready() else None
+        if session and getattr(session, "user", None):
+            email = getattr(session.user, "email", "")
+            if email:
+                self.statusBar().showMessage(f"Signed in as {email}")
+
+    def refresh_all(self, focus_date: Optional[str] = None) -> None:
+        self.calendar_tab.refresh_day(focus_date)
         self.activity_tab.refresh_history()
 
 
 def run_gui() -> None:
     app = QApplication(sys.argv)
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        QMessageBox.critical(
+            None,
+            "Supabase configuration missing",
+            "Set SUPABASE_URL and SUPABASE_ANON_KEY in your environment to enable Supabase sign-in.",
+        )
+        sys.exit(1)
+    login_dialog = LoginDialog()
+    if login_dialog.exec() != int(QDialog.DialogCode.Accepted):
+        sys.exit(0)
     window = MainWindow()
     window.resize(1200, 720)
     window.show()

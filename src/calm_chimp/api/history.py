@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from ..core import HistoryEntry, JsonDatabase
+from ..core import HistoryEntry, SupabaseDatabase
 from .registry import register_api
 
-database = JsonDatabase()
+database = SupabaseDatabase()
 
 
 def _serialize(entry: HistoryEntry) -> dict:

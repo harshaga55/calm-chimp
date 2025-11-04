@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Dict, List
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
-from ..core import JsonDatabase, StudyTask
+from ..core import StudySubject, StudyTask, SupabaseDatabase
 from .registry import register_api
 
-database = JsonDatabase()
+database = SupabaseDatabase()
+MEETINGS_SUBJECT_NAME = "Meetings"
+MEETINGS_TIMEZONE = ZoneInfo("America/New_York")
 
 
 def _parse_due_date(due_date: str) -> str:
@@ -38,6 +41,63 @@ def create_study_task(
         estimated_hours=estimated_hours,
         status="pending",
         notes=notes,
+    )
+    database.upsert_task(task)
+    return {"task": task.to_dict()}
+
+
+@register_api(
+    "schedule_meeting",
+    description="Schedule a meeting and add it under the Meetings subject on the calendar.",
+    category="calendar",
+    tags=("meeting", "calendar", "create"),
+)
+def schedule_meeting(
+    title: str,
+    meeting_date: str,
+    participants: str = "",
+    start_time: str = "",
+    duration_hours: float = 1.0,
+    notes: str = "",
+) -> Dict[str, object]:
+    due_iso = _parse_due_date(meeting_date)
+    due_date = date.fromisoformat(due_iso)
+    today_ny = datetime.now(MEETINGS_TIMEZONE).date()
+    while due_date < today_ny:
+        try:
+            due_date = due_date.replace(year=due_date.year + 1)
+        except ValueError:
+            due_date = due_date + timedelta(days=1)
+    due_iso = due_date.isoformat()
+
+    try:
+        duration = float(duration_hours)
+    except (TypeError, ValueError):
+        duration = 1.0
+    duration = max(duration, 0.25)
+
+    subject = MEETINGS_SUBJECT_NAME
+    if not database.get_subject(subject):
+        database.upsert_subject(StudySubject(name=subject, description="Scheduled meetings and events."))
+
+    note_sections = []
+    if participants:
+        note_sections.append(f"Participants: {participants}")
+    if start_time:
+        note_sections.append(f"Start Time: {start_time}")
+    if notes:
+        note_sections.append(notes)
+    note_sections.append(f"Timezone: {MEETINGS_TIMEZONE.key}")
+    note_sections.append(f"Scheduled on {datetime.now(MEETINGS_TIMEZONE).isoformat(timespec='minutes')}")
+
+    task = StudyTask(
+        id=f"meeting-{uuid4().hex[:6]}",
+        subject=subject,
+        title=title if title.lower().startswith("meeting") else f"Meeting: {title}",
+        due_date=due_date,
+        estimated_hours=duration,
+        status="pending",
+        notes="\n".join(note_sections).strip(),
     )
     database.upsert_task(task)
     return {"task": task.to_dict()}

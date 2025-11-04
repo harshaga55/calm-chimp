@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from inspect import signature
 from typing import Any, Callable, Dict, Iterable, List, Optional
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -54,5 +58,10 @@ def get_api_functions() -> List[ApiFunction]:
 
 def call_api(name: str, **kwargs: Any) -> Any:
     if name not in API_REGISTRY:
+        logger.warning("Attempted to call unknown API function '%s'", name)
         raise KeyError(f"API function '{name}' not found.")
-    return API_REGISTRY[name].func(**kwargs)
+    try:
+        return API_REGISTRY[name].func(**kwargs)
+    except Exception:  # noqa: BLE001
+        logger.exception("API function '%s' failed with arguments %s", name, kwargs)
+        raise

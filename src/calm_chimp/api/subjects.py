@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from ..core import JsonDatabase, StudySubject
+from ..core import StudySubject, SupabaseDatabase
 from .registry import register_api
 
-database = JsonDatabase()
+database = SupabaseDatabase()
 
 
 @register_api(

@@ -5,10 +5,10 @@ from pathlib import Path
 from typing import Dict, List
 
 from ..agents import PlannerAgent
-from ..core import JsonDatabase
+from ..core import SupabaseDatabase
 from .registry import register_api
 
-database = JsonDatabase()
+database = SupabaseDatabase()
 planner = PlannerAgent()
 
 

@@ -65,8 +65,33 @@ Required values:
 - `AZURE_OPENAI_ENDPOINT`: e.g. `https://your-instance.openai.azure.com/`
 - `AZURE_OPENAI_API_KEY`: the key from your Azure OpenAI resource
 - `AZURE_OPENAI_DEPLOYMENT`: deployment name (defaults to `gpt-4o` in the example)
+- `AZURE_OPENAI_API_VERSION`: the API version to target (no default; check the Azure OpenAI docs for the latest supported value)
 
 When these variables are present the in-app chatbot will call your Azure-hosted model to decide which Calm Chimp API function (and MCP tool) to invoke. Leave them unset to fall back to local heuristics and slash commands.
+
+If any of the variables are missing at runtime the GUI will show a notice and continue using the offline keyword heuristics instead of the Azure model.
+
+### Supabase Authentication & Storage
+
+Calm Chimp now supports Supabase-backed sign-in (email/password or Google) and persists calendar data per user. Configure the following environment variables in `.env`:
+
+- `SUPABASE_URL` — your Supabase project URL, e.g. `https://abcd1234.supabase.co`
+- `SUPABASE_ANON_KEY` — the anon public API key
+- `SUPABASE_SERVICE_ROLE_KEY` *(optional)* — only required if you plan to run privileged maintenance scripts directly from the desktop app
+
+In Supabase:
+
+1. Enable Email auth (password or magic link) and the Google provider under **Authentication → Providers**.
+2. Set the OAuth redirect URI to `http://localhost:52151/auth/callback` (adjust the port via `SUPABASE_REDIRECT_PORT` if needed).
+3. Create the application tables with Row Level Security enabled. At minimum you’ll need:
+   - `profiles` (primary key `id uuid references auth.users`, plus `email`, `full_name`, `avatar_url`, timestamps)
+   - `user_subjects` (primary key `id uuid default gen_random_uuid()`, `user_id uuid references auth.users`, subject metadata)
+   - `user_events` (primary key `id uuid`, `user_id uuid references auth.users`, task fields such as `title`, `due_date`, `status`, `notes`, `plan jsonb`)
+   - `history_entries` (primary key `id text`, `user_id uuid`, `timestamp timestamptz`, `action`, `snapshot jsonb`, `metadata jsonb`)
+4. Add RLS policies so authenticated users can CRUD only their own rows for each table.
+5. (Optional) Attach the trigger from the setup guide so a matching `profiles` row is created automatically whenever a new `auth.users` entry appears.
+
+With the environment and tables in place, launching the GUI will present a Supabase login dialog. Successful authentication wires all API calls to the Supabase-backed storage instead of the previous local JSON file.
 
 ### macOS App Bundle & DMG (Briefcase)
 

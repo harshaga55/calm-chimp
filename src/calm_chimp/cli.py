@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import logging
 
 from .services.http import run_local_server
 from .services.mcp import run_mcp_server
 from .ui import run_gui
+from .logging import configure_logging
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -25,6 +27,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    configure_logging()
+    logging.getLogger(__name__).debug("CLI started")
     parser = build_parser()
     args = parser.parse_args()
 
