@@ -782,6 +782,21 @@ marshmallow = ">=3.18.0,<4.0.0"
 typing-inspect = ">=0.4.0,<1"
 
 [[package]]
+name = "deprecation"
+version = "2.1.0"
+description = "A library to handle automated deprecations"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "deprecation-2.1.0-py2.py3-none-any.whl", hash = "sha256:a10811591210e1fb0e768a8c25517cabeabcba6f0bf96564f8ff45189f90b14a"},
+    {file = "deprecation-2.1.0.tar.gz", hash = "sha256:72b3bde64e5d778694b0cf68178aed03d15e15477116add3fb773e581f9518ff"},
+]
+
+[package.dependencies]
+packaging = "*"
+
+[[package]]
 name = "diskcache"
 version = "5.6.3"
 description = "Disk Cache -- Disk and file backed persistent cache."
@@ -1382,6 +1397,7 @@ files = [
 [package.dependencies]
 anyio = "*"
 certifi = "*"
+h2 = {version = ">=3,<5", optional = true, markers = "extra == \"http2\""}
 httpcore = "==1.*"
 idna = "*"
 
@@ -2602,6 +2618,24 @@ dev = ["pre-commit", "tox"]
 testing = ["coverage", "pytest", "pytest-benchmark"]
 
 [[package]]
+name = "postgrest"
+version = "2.23.2"
+description = "PostgREST client for Python. This library provides an ORM interface to PostgREST."
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "postgrest-2.23.2-py3-none-any.whl", hash = "sha256:92230083e9b63329cc1687a5ed1faeab1e41870e7b03120f5b5d5ea940452174"},
+    {file = "postgrest-2.23.2.tar.gz", hash = "sha256:102005b790bb0eb63afcb0419a9367439f77e4bcc3903727247d843f11337a8b"},
+]
+
+[package.dependencies]
+deprecation = ">=2.1.0"
+httpx = {version = ">=0.26,<0.29", extras = ["http2"]}
+pydantic = ">=1.9,<3.0"
+yarl = ">=1.20.1"
+
+[[package]]
 name = "priority"
 version = "2.0.0"
 description = "A pure-Python implementation of the HTTP/2 priority tree"
@@ -3361,6 +3395,23 @@ files = [
 ]
 
 [[package]]
+name = "realtime"
+version = "2.23.2"
+description = ""
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "realtime-2.23.2-py3-none-any.whl", hash = "sha256:8307578b2158000ce93aff313f682f1261a371c53757e4f471a1c16b401d596e"},
+    {file = "realtime-2.23.2.tar.gz", hash = "sha256:cbfbd5c1667445d5bd8853751972dcf5c424619be0ad5f7482ef3da95aaa28a8"},
+]
+
+[package.dependencies]
+pydantic = ">=2.11.7,<3.0.0"
+typing-extensions = ">=4.14.0"
+websockets = ">=11,<16"
+
+[[package]]
 name = "referencing"
 version = "0.36.2"
 description = "JSON Referencing + Python"
@@ -3814,6 +3865,95 @@ anyio = ">=3.4.0,<5"
 
 [package.extras]
 full = ["httpx (>=0.22.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.7)", "pyyaml"]
+
+[[package]]
+name = "storage3"
+version = "2.23.2"
+description = "Supabase Storage client for Python."
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "storage3-2.23.2-py3-none-any.whl", hash = "sha256:f5904bce04fcd29321ae3d25916813e17a57f1a1173caec8da4e197e19987536"},
+    {file = "storage3-2.23.2.tar.gz", hash = "sha256:5dfa13e01a8220292d7fb1ae373963c5d82f0021e3f72626f8392f2f369c66b3"},
+]
+
+[package.dependencies]
+deprecation = ">=2.1.0"
+httpx = {version = ">=0.26,<0.29", extras = ["http2"]}
+pydantic = ">=2.11.7"
+yarl = ">=1.20.1"
+
+[[package]]
+name = "strenum"
+version = "0.4.15"
+description = "An Enum that inherits from str."
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "StrEnum-0.4.15-py3-none-any.whl", hash = "sha256:a30cda4af7cc6b5bf52c8055bc4bf4b2b6b14a93b574626da33df53cf7740659"},
+    {file = "StrEnum-0.4.15.tar.gz", hash = "sha256:878fb5ab705442070e4dd1929bb5e2249511c0bcf2b0eeacf3bcd80875c82eff"},
+]
+
+[package.extras]
+docs = ["myst-parser[linkify]", "sphinx", "sphinx-rtd-theme"]
+release = ["twine"]
+test = ["pylint", "pytest", "pytest-black", "pytest-cov", "pytest-pylint"]
+
+[[package]]
+name = "supabase"
+version = "2.23.2"
+description = "Supabase client for Python."
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "supabase-2.23.2-py3-none-any.whl", hash = "sha256:ee43db792b59235e4a0e35a27af3c28b67cfd2a2f8491f11029cd370429b6832"},
+    {file = "supabase-2.23.2.tar.gz", hash = "sha256:4841dd5dd512a864a9fbdeb23081afc55cf15e1167b12357623372c028f9546e"},
+]
+
+[package.dependencies]
+httpx = ">=0.26,<0.29"
+postgrest = "2.23.2"
+realtime = "2.23.2"
+storage3 = "2.23.2"
+supabase-auth = "2.23.2"
+supabase-functions = "2.23.2"
+
+[[package]]
+name = "supabase-auth"
+version = "2.23.2"
+description = "Python Client Library for Supabase Auth"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "supabase_auth-2.23.2-py3-none-any.whl", hash = "sha256:2e3c4681436ae83a630191402c1bc118195fd8472b0b4b83516f862391a68650"},
+    {file = "supabase_auth-2.23.2.tar.gz", hash = "sha256:aa4ff37f32112a385ebec3fa5e9722fc3ff78c4a000cafdbe008b730d6d46051"},
+]
+
+[package.dependencies]
+httpx = {version = ">=0.26,<0.29", extras = ["http2"]}
+pydantic = ">=1.10,<3"
+pyjwt = {version = ">=2.10.1", extras = ["crypto"]}
+
+[[package]]
+name = "supabase-functions"
+version = "2.23.2"
+description = "Library for Supabase Functions"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "supabase_functions-2.23.2-py3-none-any.whl", hash = "sha256:0822923cf545f3ed54cf7176bc28b06c3f6852e7b12a23d96cf79c504d86a0d1"},
+    {file = "supabase_functions-2.23.2.tar.gz", hash = "sha256:d0dcaa1b580483ecd6b2bfbf8dcafa990924b8c9e4a5b5b17ff63ab09140384b"},
+]
+
+[package.dependencies]
+httpx = {version = ">=0.26,<0.29", extras = ["http2"]}
+strenum = ">=0.4.15"
+yarl = ">=1.20.1"
 
 [[package]]
 name = "tenacity"
@@ -4472,4 +4612,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "a8378bad9bbfcacade009bcf43628ae369ed1048d3177fb80f0777e1b3b305d4"
+content-hash = "d2cf814fbfb67478062da2dfeb613dfcb01360a61136a2c598ff99f423c722e5"

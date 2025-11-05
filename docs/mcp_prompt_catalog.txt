@@ -1,206 +1,67 @@
 Calm Chimp MCP Prompt Catalog
 =============================
 
+Use these patterns to steer the Azure + LangGraph orchestrator toward the Supabase tools exposed by the new deterministic API.
+
 Prompt Playbook
 ---------------
-Use these natural-language patterns to steer the Azure Orchestrator toward the MCP tools that power Calm Chimp. Each prompt describes the intent the assistant can recognize and the underlying tool it maps to.
+1. Timeline insight (calendar)
+   - "Show everything happening on 2025-01-20."
+   - "What events do I have this weekend?"
+   - "Refresh my calendar cache with the latest Supabase data."
 
-1. Planning New Study Work (planning)
-   - "Plan a study schedule for Calculus covering chapters 1-3 by 15th nov, give me 1.5 hours per chapter."
-   - "Break down my neuroscience exam prep due on 2024-12-01 using this outline: synapses, neurotransmitters, brain regions."
-   - "Generate a review plan for all existing Physics tasks before 2024-10-20."
+2. Event management (calendar)
+   - "Create a design review tomorrow at 10am for one hour in the Studio." → `upsert_event`
+   - "Mark the planning session as completed." → `update_event_status`
+   - "Cancel the retro called team-retro-42." → `delete_event`
 
-2. Calendar & Meetings (calendar)
-   - "Schedule a meeting with Raman on 2024-11-04 at 15:00 for 2 hours and note that it is a demo rehearsal."
-   - "Show everything on my calendar for 2024-11-05."
-   - "What tasks are due within the next 7 days starting Monday?"
-   - "Give me the day-by-day schedule for task algebra-final-review."
+3. Category organization (categories)
+   - "Make a category named Focus Blocks using #ffb703." → `upsert_category`
+   - "List all of my categories." → `list_categories`
 
-3. Task Management (tasks)
-   - "Create a Literature task called 'Essay draft' due 2024-10-08; spend 3 hours and note the rubric link."
-   - "Add a note to task bio-lab-123 saying 'Need to verify samples beforehand'."
-   - "Mark task meeting-ab12cd complete."
-   - "List my pending tasks ordered by due date and highlight what's overdue."
-   - "Push task calculus-quiz back one week."
-
-4. Subject Management (subjects)
-   - "Create a subject named 'Entrepreneurship' with the description 'Launch module'."
-   - "Color-code the Physics subject with #1E90FF."
-   - "List every subject and show how many tasks each has."
-   - "Delete the subject 'Old Projects' and all its tasks."
-
-5. History & Audit Trail (history)
-   - "Show the last ten things I changed."
-   - "Give me the details for history entry 20240910124501000000."
-   - "Revert the calendar to history snapshot 20240910120000000000."
-   - "Export the entire history timeline."
-
-6. Tool Discovery & Meta (meta)
-   - "List every MCP tool you support."
-   - "What inputs does the schedule_meeting tool expect?"
-
+4. Accounts & context (accounts)
+   - "Who am I signed in as right now?" → `current_user_profile`
 
 MCP Tool Reference
 ------------------
-The table below lists every deterministic API surface the MCP server exposes. Use these descriptions when crafting prompts or wiring automations. Parameter annotations mirror the Python type hints.
+All tools return JSON objects aligned with the Supabase schema. Parameters are standard Python annotations.
 
-- add_note_to_task — tasks  
-  Description: Append a note to a task.  
-  Parameters: task_id (str), note (str)
+- refresh_timeline — calendar  
+  Hydrate ± cache window from Supabase and refresh the in-memory index.  
+  Parameters: `anchor: str | None`
 
-- assign_subject_color — subjects  
-  Description: Assign a color hex code to a subject.  
-  Parameters: name (str), color_hex (str)
+- events_for_day — calendar  
+  Return cached events for a specific ISO date.  
+  Parameters: `day: str`
 
-- calendar_generate_daily_schedule_for_task — calendar  
-  Description: Generate the per-day schedule entries for a single task.  
-  Parameters: task_id (str)
+- events_between — calendar  
+  Return cached events between two ISO dates (inclusive).  
+  Parameters: `start: str`, `end: str`
 
-- calendar_tasks_due_in_days — calendar  
-  Description: Return tasks due in an exact number of days from today.  
-  Parameters: days_ahead (int)
+- upsert_event — calendar  
+  Create or update an event. Missing `event_id` will generate a UUID.  
+  Parameters: `title: str`, `starts_at: str`, `ends_at: str`, `event_id: str | None`, `status: str`, `category_id: str | None`, `notes: str`, `location: str | None`, `metadata: dict | None`
 
-- calendar_tasks_for_day — calendar  
-  Description: Return tasks scheduled or due on a specific day.  
-  Parameters: day (str)
+- update_event_status — calendar  
+  Change the status (`planned`, `in_progress`, `completed`, `canceled`).  
+  Parameters: `event_id: str`, `status: str`
 
-- calendar_tasks_for_subject — calendar  
-  Description: Return tasks for a specific subject and day.  
-  Parameters: subject (str), day (str)
+- delete_event — calendar  
+  Remove an event from Supabase and the cache.  
+  Parameters: `event_id: str`
 
-- calendar_tasks_for_week — calendar  
-  Description: Return tasks due within a seven day window starting from the provided day.  
-  Parameters: start_day (str)
+- list_categories — categories  
+  List every category for the authenticated user.  
+  Parameters: none
 
-- create_study_task — tasks  
-  Description: Create a new study task with the provided subject, title, and due date.  
-  Parameters: subject (str), title (str), due_date (str), estimated_hours (float), notes (str)
+- upsert_category — categories  
+  Create or update a category.  
+  Parameters: `name: str`, `category_id: str | None`, `color: str | None`, `icon: str | None`, `description: str`
 
-- create_subject — subjects  
-  Description: Create a new study subject with a description.  
-  Parameters: name (str), description (str)
+- delete_category — categories  
+  Delete a category by id.  
+  Parameters: `category_id: str`
 
-- delete_subject_and_tasks — subjects  
-  Description: Delete a subject and all tasks associated with it.  
-  Parameters: name (str)
-
-- delete_task_by_id — tasks  
-  Description: Delete a task permanently by its identifier.  
-  Parameters: task_id (str)
-
-- duplicate_task_to_subject — tasks  
-  Description: Duplicate a task into another subject with a new due date.  
-  Parameters: task_id (str), target_subject (str), new_due_date (str)
-
-- generate_plan_from_description — planning  
-  Description: Generate a plan from a single description string.  
-  Parameters: subject (str), due_date (str), description (str), hours_per_section (float)
-
-- generate_plan_from_outline — planning  
-  Description: Generate study tasks from an explicit outline list.  
-  Parameters: subject (str), due_date (str), outline_lines (List[str]), hours_per_section (float)
-
-- generate_plan_from_outline_file — planning  
-  Description: Generate tasks from a text file containing outline lines.  
-  Parameters: subject (str), due_date (str), outline_file_path (str), hours_per_section (float)
-
-- generate_review_plan_for_existing_tasks — planning  
-  Description: Create a review plan for tasks already stored under a subject without altering existing tasks.  
-  Parameters: subject (str), due_date (str), hours_per_section (float)
-
-- get_history_entry_details — history  
-  Description: Get details for a specific history entry by ID.  
-  Parameters: history_id (str)
-
-- get_task_details — tasks  
-  Description: Get the details of a task by identifier.  
-  Parameters: task_id (str)
-
-- list_all_subjects — subjects  
-  Description: List all subjects alphabetically.  
-  Parameters: None
-
-- list_available_tools — meta  
-  Description: List all deterministic API functions (MCP tools) with descriptions, categories, and parameters.  
-  Parameters: None
-
-- list_completed_tasks_recent_first — tasks  
-  Description: List completed tasks sorted by most recent history entry.  
-  Parameters: None
-
-- list_history_entries — history  
-  Description: List all history entries in chronological order.  
-  Parameters: None
-
-- list_overdue_tasks — tasks  
-  Description: List tasks past their due date and still pending.  
-  Parameters: None
-
-- list_pending_tasks_ordered_by_due_date — tasks  
-  Description: List all pending tasks sorted by due date ascending.  
-  Parameters: None
-
-- list_recent_history_actions — history  
-  Description: List the ten most recent history actions.  
-  Parameters: None
-
-- list_recently_added_tasks — tasks  
-  Description: List the ten most recently created or updated tasks.  
-  Parameters: None
-
-- list_subjects_with_task_counts — subjects  
-  Description: List all subjects with counts of tasks under each subject.  
-  Parameters: None
-
-- list_tasks_due_this_week — tasks  
-  Description: List tasks due within the next seven days.  
-  Parameters: None
-
-- list_tasks_due_today — tasks  
-  Description: List tasks due today.  
-  Parameters: None
-
-- list_tasks_due_tomorrow — tasks  
-  Description: List tasks due tomorrow.  
-  Parameters: None
-
-- list_tasks_for_subject — tasks  
-  Description: List all tasks for a given subject.  
-  Parameters: subject (str)
-
-- mark_task_completed — tasks  
-  Description: Mark a task as completed by its identifier.  
-  Parameters: task_id (str)
-
-- mark_task_pending — tasks  
-  Description: Reopen a task by setting its status to pending.  
-  Parameters: task_id (str)
-
-- reschedule_task_next_week — calendar  
-  Description: Move a task's due date forward by seven days.  
-  Parameters: task_id (str)
-
-- reschedule_task_to_today — calendar  
-  Description: Move a task's due date to today.  
-  Parameters: task_id (str)
-
-- reschedule_task_to_tomorrow — calendar  
-  Description: Move a task's due date to tomorrow.  
-  Parameters: task_id (str)
-
-- revert_calendar_to_history_entry — history  
-  Description: Revert tasks and subjects to a previous history snapshot.  
-  Parameters: history_id (str)
-
-- schedule_meeting — calendar  
-  Description: Schedule a meeting and add it under the Meetings subject on the calendar.  
-  Parameters: title (str), meeting_date (str), participants (str), start_time (str), duration_hours (float), notes (str)
-
-- update_subject_description — subjects  
-  Description: Replace the description for a subject.  
-  Parameters: name (str), description (str)
-
-- update_task_due_date — tasks  
-  Description: Update the due date for a task.  
-  Parameters: task_id (str), due_date (str)
-
+- current_user_profile — accounts  
+  Return profile data for the signed-in Supabase user.  
+  Parameters: none

@@ -1,15 +1,11 @@
-"""Calm Chimp package: desktop AI study planner with MCP integration."""
+"""Calm Chimp application package."""
 
-__all__ = ["main", "run_gui"]
+from __future__ import annotations
 
+from .ui.app import run_gui as run_gui
 
-def run_gui() -> None:
-    """Launch the PyQt GUI."""
-    from .ui import run_gui as _run_gui
-
-    _run_gui()
+__all__ = ["run_gui"]
 
 
 def main() -> None:
-    """Default entry point for `python -m calm_chimp`."""
     run_gui()

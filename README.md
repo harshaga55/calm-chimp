@@ -1,143 +1,89 @@
-# Calm Chimp — AI-Powered Study Planner
+# Calm Chimp — Supabase Calendar Copilot
 
-Calm Chimp is a desktop-first study planner built with PyQt, Poetry, LangGraph, and FastMCP. It helps students avoid task-hopping by turning book outlines, lecture PDFs, or custom prompts into deterministic task plans that flow directly into a daily calendar. The agent-driven planner keeps focus on one task at a time while the MCP server and local HTTP API make the assistant accessible from automations or other chat UIs.
+Calm Chimp is now a Supabase-first, multi-user calendar workspace. A streamlined PyQt desktop app, Azure-powered orchestration layer, and deterministic API surface let every authenticated user plan events, manage categories, and chat with the assistant without losing momentum. The UI keeps the timeline, category controls, and chat side-by-side so the assistant never blocks your view of upcoming work.
 
-## ✨ Key Features
+## ✨ Highlights
+- **Supabase-native storage**: email/password or Google login is the first screen. The client hydrates one year back and one year forward on sign-in, then serves everything from the in-memory cache for speed.
+- **Split-pane productivity UI**: left sidebar for profile & categories, center timeline for daily context, right assistant panel for LangGraph-driven chat. Each runs async through a task runner so Supabase calls never freeze the GUI.
+- **Deterministic APIs → MCP tools**: a minimal API catalog (`events_for_day`, `upsert_event`, `list_categories`, and friends) powers the local FastAPI server, FastMCP streamable server, and the LangGraph orchestrator.
+- **Azure OpenAI orchestration**: when Azure credentials are present the chat panel routes through GPT via LangGraph, otherwise keyword heuristics keep tools accessible offline.
+- **Configurable caching + themes**: environment-driven cache windows, table names, and a refreshed midnight gradient palette keep the UI readable and fast.
 
-- **Calendar + Activity Dashboard**: PyQt interface with tabs for calendar views, recent activity timeline, and outline planning.
-- **Right-Side Chatbot Panel**: Deterministic command bot orchestrates MCP tools for scheduling, overviews, and quick actions.
-- **LangGraph Study Agent**: Deterministic plan generation from tables of contents or ad-hoc prompts, tuned for academic workflows.
-- **Deterministic Local API**: 30+ single-purpose functions drive MCP tools and GUI actions with predictable behavior.
-- **FastMCP Server Tools**: Automatically exposes every API function (minimum 25 tools) so the chatbot can operate the calendar.
-- **JSON History Log**: Every change captured with snapshots so users can revert the planner to any previous state (stored under the OS app-support directory, e.g. `~/Library/Application Support/Calm Chimp/tasks.json` on macOS).
-- **macOS Desktop App**: Packageable GUI (via `scripts/build_dmg.sh`) for DMG distribution.
-
-## 🛠 Tech Stack
-
-- Poetry-managed Python 3.11
-- PyQt6 for the GUI
-- LangChain Core + LangGraph for deterministic agents
-- FastMCP for MCP server tooling (25+ tools auto-generated from the API)
-- FastAPI + Hypercorn for the local HTTP service
-- orjson + Pydantic for fast JSON handling
-
-## 🚀 Getting Started
-
-```bash
-poetry install
-poetry run calm-chimp gui       # launch the desktop planner (primary experience)
-poetry run calm-chimp api       # optional: start http://127.0.0.1:8000 for local integrations
-poetry run calm-chimp mcp       # optional: expose 25+ MCP tools at http://127.0.0.1:8765
-```
-
-### Planning From a Table of Contents
-1. Launch the GUI (`poetry run calm-chimp gui`).
-2. Paste or load outline lines (e.g. chapters from a PDF TOC) in the Planner tab.
-3. Set the subject, due date, and hours per section.
-4. Generate the plan to populate the calendar and history log at the same time.
-
-### Using the MCP Tools
-- Every function under `calm_chimp/api/` is exposed as an MCP tool automatically.
-- Example tool names: `generate_plan_from_outline`, `calendar_tasks_for_day`, `list_overdue_tasks`, `revert_calendar_to_history_entry`.
-
-Point your MCP-capable client at `http://127.0.0.1:8765/stream` (FastMCP default) to interact with the chatbot-friendly toolkit.
-
-### HTTP API Quick Test
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/functions/list_pending_tasks_ordered_by_due_date \
-  -H "Content-Type: application/json" \
-  -d '{ "arguments": {} }'
-```
-
-Use `GET /api/functions` to discover all available deterministic API calls.
-
-### Azure OpenAI Configuration
-
-Copy `.env.example` to `.env` and populate your Azure resource details:
-
-```bash
-cp .env.example .env
-```
-
-Required values:
-
-- `AZURE_OPENAI_ENDPOINT`: e.g. `https://your-instance.openai.azure.com/`
-- `AZURE_OPENAI_API_KEY`: the key from your Azure OpenAI resource
-- `AZURE_OPENAI_DEPLOYMENT`: deployment name (defaults to `gpt-4o` in the example)
-- `AZURE_OPENAI_API_VERSION`: the API version to target (no default; check the Azure OpenAI docs for the latest supported value)
-
-When these variables are present the in-app chatbot will call your Azure-hosted model to decide which Calm Chimp API function (and MCP tool) to invoke. Leave them unset to fall back to local heuristics and slash commands.
-
-If any of the variables are missing at runtime the GUI will show a notice and continue using the offline keyword heuristics instead of the Azure model.
-
-### Supabase Authentication & Storage
-
-Calm Chimp now supports Supabase-backed sign-in (email/password or Google) and persists calendar data per user. Configure the following environment variables in `.env`:
-
-- `SUPABASE_URL` — your Supabase project URL, e.g. `https://abcd1234.supabase.co`
-- `SUPABASE_ANON_KEY` — the anon public API key
-- `SUPABASE_SERVICE_ROLE_KEY` *(optional)* — only required if you plan to run privileged maintenance scripts directly from the desktop app
-
-In Supabase:
-
-1. Enable Email auth (password or magic link) and the Google provider under **Authentication → Providers**.
-2. Set the OAuth redirect URI to `http://localhost:52151/auth/callback` (adjust the port via `SUPABASE_REDIRECT_PORT` if needed).
-3. Create the application tables with Row Level Security enabled. At minimum you’ll need:
-   - `profiles` (primary key `id uuid references auth.users`, plus `email`, `full_name`, `avatar_url`, timestamps)
-   - `user_subjects` (primary key `id uuid default gen_random_uuid()`, `user_id uuid references auth.users`, subject metadata)
-   - `user_events` (primary key `id uuid`, `user_id uuid references auth.users`, task fields such as `title`, `due_date`, `status`, `notes`, `plan jsonb`)
-   - `history_entries` (primary key `id text`, `user_id uuid`, `timestamp timestamptz`, `action`, `snapshot jsonb`, `metadata jsonb`)
-4. Add RLS policies so authenticated users can CRUD only their own rows for each table.
-5. (Optional) Attach the trigger from the setup guide so a matching `profiles` row is created automatically whenever a new `auth.users` entry appears.
-
-With the environment and tables in place, launching the GUI will present a Supabase login dialog. Successful authentication wires all API calls to the Supabase-backed storage instead of the previous local JSON file.
-
-### macOS App Bundle & DMG (Briefcase)
-
-```bash
-# One-time prerequisites (if not already available)
-xcode-select --install           # install command line tools
-
-# Build & package using Briefcase (Apple silicon arm64 by default)
-bash scripts/package_macos.sh
-```
-
-The script wraps Briefcase's `create`, `build`, and `package` phases to produce a native `.app` bundle and DMG under `dist/macOS`. It performs ad-hoc signing so the DMG runs on your machine immediately; swap in your Apple developer identity when you are ready to distribute broadly. The generated DMG opens with the Applications shortcut on the left and a large Calm Chimp icon on the right. If you need an Intel build, rerun the underlying Briefcase commands with `--update --config macOS.universal_build=true` or build from Xcode targeting `x86_64`.
-
-## 🗂 Project Structure
-
+## 🧱 New Project Layout
 ```
 src/calm_chimp/
-├── __init__.py               # default GUI entry-point
-├── cli.py                    # CLI routes to GUI/API/MCP modes
-├── agents/                   # LangGraph-based planners
-│   └── planner.py
-├── api/                      # deterministic function surface (drives MCP + GUI)
-│   ├── calendar.py
-│   ├── history.py
-│   ├── planning.py
+├── __init__.py             # exposes run_gui()
+├── cli.py                  # CLI entrypoint (gui/api/mcp)
+├── api/                    # deterministic API + tool registry
+│   ├── endpoints.py
 │   ├── registry.py
-│   ├── subjects.py
-│   └── tasks.py
-├── core/                     # config, domain models, persistence, scheduling
-│   ├── config.py
-│   ├── database.py
-│   ├── models.py
-│   └── scheduler.py
-├── services/
-│   ├── http/                 # FastAPI deterministic function bridge
-│   │   └── server.py
-│   └── mcp/                  # FastMCP tool server (auto-registers API functions)
-│       └── server.py
-└── ui/                       # PyQt desktop application
-    └── gui.py
+│   ├── serializers.py
+│   └── state.py
+├── bootstrap/              # logging bootstrap
+├── config/                 # settings + palette
+├── data/                   # Supabase gateway, repositories, cache
+├── domain/                 # calendar + category dataclasses
+├── orchestrator/           # Azure + LangGraph orchestration
+├── services/               # auth, calendar, categories, MCP/HTTP servers
+├── ui/                     # PyQt login workflow & split-pane shell
+└── utils/                  # Qt task runner helpers
 ```
 
-## 🚧 Roadmap
+## 🚀 Getting Started
+```bash
+poetry install
+cp .env.example .env   # fill in Supabase + Azure values
+poetry run calm-chimp gui
+```
 
-- ✅ LangGraph deterministic planner with JSON persistence
-- ✅ PyQt GUI + MCP + streamable HTTP integrations
-- ⏳ PDF ingestion helpers (outline extraction)
-- ⏳ Focus timer & distraction log
-- ⏳ Cloud sync + mobile companion
+### Environment configuration
+| Variable | Purpose |
+| --- | --- |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Required for Supabase auth + data |
+| `SUPABASE_REDIRECT_PORT` | Optional, defaults to 52151 |
+| `SUPABASE_EVENTS_TABLE` | Defaults to `calendar_events` |
+| `SUPABASE_CATEGORIES_TABLE` | Defaults to `event_categories` |
+| `SUPABASE_PROFILES_TABLE` | Defaults to `profiles` |
+| `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_API_KEY` / `AZURE_OPENAI_DEPLOYMENT` / `AZURE_OPENAI_API_VERSION` | Enable Azure orchestration |
+| `CALM_CACHE_WINDOW_BEFORE_DAYS` / `CALM_CACHE_WINDOW_AFTER_DAYS` | Control cache horizon |
+
+### Supabase schema snapshot
+Create tables (UUID primary keys) and enable RLS so users see only their own data:
+- `profiles`: `{ id uuid pk, email text, full_name text, avatar_url text, created_at timestamptz }`
+- `event_categories`: `{ id uuid pk, user_id uuid fk auth.users, name text, color text, icon text, description text }`
+- `calendar_events`: `{ id uuid pk, user_id uuid fk, title text, starts_at timestamptz, ends_at timestamptz, status text, category_id uuid, notes text, location text, metadata jsonb }`
+
+### CLI commands
+```bash
+poetry run calm-chimp gui      # Launch the desktop application
+poetry run calm-chimp api      # Expose /api/functions REST bridge
+poetry run calm-chimp mcp      # Serve the MCP tool catalog over streamable HTTP
+```
+
+### API & MCP
+The API registry auto-registers these core tools:
+- `refresh_timeline(anchor?: str)`
+- `events_for_day(day: str)`
+- `events_between(start: str, end: str)`
+- `upsert_event(...)`, `update_event_status(...)`, `delete_event(event_id: str)`
+- `list_categories()`, `upsert_category(...)`, `delete_category(category_id: str)`
+- `current_user_profile()`
+
+The FastAPI bridge exposes them under `/api/functions/{name}`. The MCP server mirrors the list so LangGraph (or any MCP client) can call the same deterministic helpers.
+
+### Desktop experience
+1. **Login dialog** — email/password or Google OAuth. Authentication wires the Supabase session into the shared service context and clears stale caches.
+2. **Timeline view** — calendar & event list stay visible while the assistant works. Cache hydrates ±365 days on first load.
+3. **Assistant panel** — LangGraph orchestrator executes tools in background threads; results flow both into the transcript and back to the timeline or category panes when relevant.
+4. **Category & event editors** — quick dialogs keep optional metadata flexible while enforcing only the essentials (title & schedule).
+
+## 🧪 Validation
+- `poetry run calm-chimp mcp` spins up the MCP server with the tool catalog.
+- `poetry run calm-chimp api` exposes the REST bridge for automation tests.
+- `python -m compileall src/calm_chimp` ensures all modules import cleanly.
+
+## 📌 Roadmap
+- Rich event boards (Kanban/day density)
+- Shared calendars & collaboration hints
+- LangGraph playbooks for recurring meeting prep
+- Real-time Supabase websocket updates

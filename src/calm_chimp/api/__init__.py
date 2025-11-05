@@ -1,14 +1,11 @@
-"""Deterministic local API surface powering MCP tools and the GUI."""
+"""Public API surface for MCP and the GUI."""
 
-from .registry import API_REGISTRY, ApiFunction, call_api, get_api_functions, register_api
+from __future__ import annotations
 
-# Import submodules to ensure API functions are registered on package import.
-from . import calendar, calendar_tools, history, meta, planning, subjects, tasks  # noqa: F401
+from .registry import ApiFunction, call_api, get_api_functions, register_api
+from .state import api_state
 
-__all__ = [
-    "API_REGISTRY",
-    "ApiFunction",
-    "call_api",
-    "get_api_functions",
-    "register_api",
-]
+# Import endpoints so decorators run at module import time.
+from . import endpoints  # noqa: F401
+
+__all__ = ["ApiFunction", "api_state", "call_api", "get_api_functions", "register_api"]
