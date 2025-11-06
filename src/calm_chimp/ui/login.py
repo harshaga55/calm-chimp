@@ -8,17 +8,7 @@ from typing import Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
-    QDialog,
-    QDialogButtonBox,
-    QFormLayout,
-    QGridLayout,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QPushButton,
-    QVBoxLayout,
-)
+from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy, QVBoxLayout
 
 from ..config.settings import SupabaseSettings
 from ..services import AuthService
@@ -79,47 +69,122 @@ class LoginDialog(QDialog):
 
         self.setWindowTitle("Calm Chimp — Sign in")
         self.setModal(True)
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(520)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(48, 48, 48, 32)
+        layout.setSpacing(16)
+        layout.addStretch(1)
+
+        card = QFrame()
+        card.setObjectName("loginCard")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(40, 36, 40, 36)
+        card_layout.setSpacing(24)
+
+        hero = QVBoxLayout()
+        hero.setSpacing(6)
+        hero.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
         header = QLabel("Welcome back")
         header.setObjectName("title")
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(header)
+        hero.addWidget(header)
 
         subtitle = QLabel("Sign in to Sync Supabase Events")
         subtitle.setObjectName("subtitle")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(subtitle)
+        hero.addWidget(subtitle)
+
+        blurb = QLabel("Connect Calm Chimp to your Supabase workspace to keep calendars and tasks perfectly in sync.")
+        blurb.setObjectName("caption")
+        blurb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        blurb.setWordWrap(True)
+        hero.addWidget(blurb)
+        card_layout.addLayout(hero)
 
         form = QFormLayout()
+        form.setFormAlignment(Qt.AlignmentFlag.AlignHCenter)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        form.setHorizontalSpacing(14)
+        form.setVerticalSpacing(14)
         self.email_input = QLineEdit()
         self.email_input.setPlaceholderText("email@example.com")
+        self.email_input.setClearButtonEnabled(True)
+        self.email_input.returnPressed.connect(self._sign_in)
+        self.email_input.textChanged.connect(self._clear_status)
         form.addRow("Email", self.email_input)
 
         self.password_input = QLineEdit()
         self.password_input.setPlaceholderText("Password")
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_input.setClearButtonEnabled(True)
+        self.password_input.returnPressed.connect(self._sign_in)
+        self.password_input.textChanged.connect(self._clear_status)
         form.addRow("Password", self.password_input)
-        layout.addLayout(form)
+        card_layout.addLayout(form)
 
         self.status_label = QLabel("")
+        self.status_label.setObjectName("statusLabel")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setWordWrap(True)
-        layout.addWidget(self.status_label)
+        self.status_label.hide()
+        card_layout.addWidget(self.status_label)
 
-        buttons_row = QGridLayout()
+        actions = QVBoxLayout()
+        actions.setSpacing(12)
+
+        primary_row = QHBoxLayout()
+        primary_row.setSpacing(12)
+
         login_btn = QPushButton("Sign In")
+        login_btn.setObjectName("primaryButton")
+        login_btn.setDefault(True)
         login_btn.clicked.connect(self._sign_in)
-        buttons_row.addWidget(login_btn, 0, 0)
+        login_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        primary_row.addWidget(login_btn)
 
         signup_btn = QPushButton("Create Account")
+        signup_btn.setObjectName("secondaryButton")
         signup_btn.clicked.connect(self._sign_up)
-        buttons_row.addWidget(signup_btn, 0, 1)
+        signup_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        primary_row.addWidget(signup_btn)
+        actions.addLayout(primary_row)
+
+        divider_row = QHBoxLayout()
+        divider_row.setSpacing(8)
+        divider_row.setContentsMargins(0, 6, 0, 6)
+
+        divider_left = QFrame()
+        divider_left.setObjectName("divider")
+        divider_left.setFrameShape(QFrame.Shape.NoFrame)
+        divider_left.setFixedHeight(1)
+        divider_row.addWidget(divider_left)
+
+        divider_label = QLabel("or")
+        divider_label.setObjectName("muted")
+        divider_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        divider_row.addWidget(divider_label)
+
+        divider_right = QFrame()
+        divider_right.setObjectName("divider")
+        divider_right.setFrameShape(QFrame.Shape.NoFrame)
+        divider_right.setFixedHeight(1)
+        divider_row.addWidget(divider_right)
+        divider_row.setStretch(0, 1)
+        divider_row.setStretch(2, 1)
+        actions.addLayout(divider_row)
 
         google_btn = QPushButton("Continue with Google")
+        google_btn.setObjectName("googleButton")
         google_btn.clicked.connect(self._sign_in_google)
-        buttons_row.addWidget(google_btn, 1, 0, 1, 2)
-        layout.addLayout(buttons_row)
+        google_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        google_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        actions.addWidget(google_btn)
+        card_layout.addLayout(actions)
+
+        layout.addWidget(card, alignment=Qt.AlignmentFlag.AlignHCenter)
+        layout.addStretch(1)
 
         footer = QHBoxLayout()
         footer.addStretch(1)
@@ -128,17 +193,43 @@ class LoginDialog(QDialog):
         footer.addWidget(cancel)
         layout.addLayout(footer)
 
-        self._set_status("Enter your Supabase credentials to continue.")
+        self._action_buttons = [login_btn, signup_btn, google_btn]
+        self._status_kind = "info"
+        self._default_status = "Enter your Supabase credentials to continue."
+        self._set_status(self._default_status)
+        self.email_input.setFocus()
 
     # ------------------------------------------------------------------ helpers
 
-    def _set_status(self, message: str, *, error: bool = False) -> None:
-        color = "#ef233c" if error else "#70e000"
-        self.status_label.setStyleSheet(f"color: {color};")
+    def _set_status(self, message: str, *, kind: str = "info") -> None:
+        self._status_kind = kind
+        if not message:
+            self.status_label.hide()
+            return
+
+        styles = {
+            "info": ("#cbd5f5", "#1a283d", "#273852"),
+            "success": ("#70e000", "#17321c", "#275d30"),
+            "error": ("#ef233c", "#3a181f", "#55202c"),
+        }
+        color, background, border = styles.get(kind, styles["info"])
+        stylesheet = (
+            f"color: {color};"
+            f"background-color: {background};"
+            f"border: 1px solid {border};"
+            "padding: 8px 12px;"
+            "border-radius: 6px;"
+        )
+        self.status_label.setStyleSheet(stylesheet)
         self.status_label.setText(message)
+        self.status_label.show()
+
+    def _clear_status(self) -> None:
+        if getattr(self, "_status_kind", "") == "error":
+            self._set_status(self._default_status)
 
     def _set_busy(self, busy: bool) -> None:
-        for widget in (self.email_input, self.password_input):
+        for widget in (self.email_input, self.password_input, *self._action_buttons):
             widget.setEnabled(not busy)
 
     def _credentials(self) -> Tuple[str, str]:
@@ -150,14 +241,14 @@ class LoginDialog(QDialog):
 
     def _handle_error(self, exc: Exception) -> None:
         self._set_busy(False)
-        self._set_status(str(exc), error=True)
+        self._set_status(str(exc), kind="error")
 
     def _finish_sign_in(self, _response: object) -> None:
         self._set_busy(False)
         if not self.auth_service.context.gateway.is_ready():
-            self._set_status("Authentication incomplete. Check your inbox for verification.", error=True)
+            self._set_status("Authentication incomplete. Check your inbox for verification.", kind="error")
             return
-        self._set_status("Authentication successful.")
+        self._set_status("Authentication successful.", kind="success")
         self.accept()
 
     # ------------------------------------------------------------------ slots
@@ -166,9 +257,10 @@ class LoginDialog(QDialog):
         try:
             email, password = self._credentials()
         except ValueError as exc:
-            self._set_status(str(exc), error=True)
+            self._set_status(str(exc), kind="error")
             return
         self._set_busy(True)
+        self._set_status("Signing you in...", kind="info")
 
         def worker() -> object:
             return self.auth_service.sign_in_with_password(email, password)
@@ -179,28 +271,29 @@ class LoginDialog(QDialog):
         try:
             email, password = self._credentials()
         except ValueError as exc:
-            self._set_status(str(exc), error=True)
+            self._set_status(str(exc), kind="error")
             return
         self._set_busy(True)
+        self._set_status("Creating your account...", kind="info")
 
         def worker() -> object:
             return self.auth_service.sign_up_with_password(email, password)
 
         def done(_result: object) -> None:
             self._set_busy(False)
-            self._set_status("Account created. Please verify your email then sign in.")
+            self._set_status("Account created. Please verify your email then sign in.", kind="success")
 
         self.runner.submit(worker, on_success=done, on_error=self._handle_error)
 
     def _sign_in_google(self) -> None:
         if not self.supabase_settings.is_configured:
-            self._set_status("Supabase credentials missing. Set SUPABASE_URL and SUPABASE_ANON_KEY.", error=True)
+            self._set_status("Supabase credentials missing. Set SUPABASE_URL and SUPABASE_ANON_KEY.", kind="error")
             return
         port = _find_port(self.supabase_settings.redirect_port)
         redirect_url = f"http://localhost:{port}/auth/callback"
         server = _start_oauth_server(port)
         _reset_oauth_state()
-        self._set_status("Waiting for Google OAuth...")
+        self._set_status("Waiting for Google OAuth...", kind="info")
 
         def worker() -> object:
             response = self.auth_service.sign_in_with_oauth("google", redirect_to=redirect_url)
