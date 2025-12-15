@@ -28,7 +28,7 @@ class AuthService:
         return self._client().auth.sign_in_with_oauth({"provider": provider, "options": {"redirect_to": redirect_to}})
 
     def exchange_code_for_session(self, code: str) -> Optional[Any]:
-        response = self._client().auth.exchange_code_for_session({"code": code})
+        response = self._client().auth.exchange_code_for_session({"auth_code": code})
         session = getattr(response, "session", None)
         if session:
             self.context.gateway.set_session(session)

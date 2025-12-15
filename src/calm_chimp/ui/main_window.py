@@ -76,8 +76,12 @@ class MainWindow(QMainWindow):
             return {"email": email, "full_name": None}
 
         def done(result):
-            email = getattr(result, "email", result.get("email"))
-            full_name = getattr(result, "full_name", result.get("full_name"))
+            if hasattr(result, "email"):
+                email = getattr(result, "email")
+                full_name = getattr(result, "full_name", None)
+            else:
+                email = result.get("email")
+                full_name = result.get("full_name")
             self.sidebar.set_user(email=email, full_name=full_name)
 
         self.runner.submit(worker, on_success=done, on_error=self._handle_error)

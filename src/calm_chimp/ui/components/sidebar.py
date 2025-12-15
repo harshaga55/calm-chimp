@@ -25,15 +25,18 @@ class Sidebar(QWidget):
 
     def __init__(self) -> None:
         super().__init__()
+        self.setObjectName("sidebarPanel")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setSpacing(14)
 
         self.user_label = QLabel("")
         self.user_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.user_label.setObjectName("subtitle")
         layout.addWidget(self.user_label)
 
         action_row = QHBoxLayout()
+        action_row.setSpacing(10)
         refresh_button = QPushButton("Refresh")
         refresh_button.clicked.connect(self.refresh_requested)
         action_row.addWidget(refresh_button)
@@ -43,7 +46,9 @@ class Sidebar(QWidget):
         action_row.addWidget(new_event)
         layout.addLayout(action_row)
 
-        layout.addWidget(QLabel("Categories"))
+        categories_label = QLabel("Categories")
+        categories_label.setObjectName("caption")
+        layout.addWidget(categories_label)
         self.category_list = QListWidget()
         self.category_list.itemSelectionChanged.connect(self._emit_selected_category)
         layout.addWidget(self.category_list, stretch=1)

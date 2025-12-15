@@ -12,10 +12,32 @@ load_dotenv()
 
 
 @dataclass(frozen=True)
+class LlmSettings:
+    api_key: Optional[str]
+    model: str
+    base_url: Optional[str]
+    api_version: Optional[str]
+    organization: Optional[str]
+    project: Optional[str]
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.api_key and self.model)
+
+    @property
+    def missing_env_vars(self) -> list[str]:
+        missing = []
+        if not self.api_key:
+            missing.append("OPENAI_API_KEY")
+        if not self.model:
+            missing.append("OPENAI_MODEL")
+        return missing
+
+
+@dataclass(frozen=True)
 class SupabaseSettings:
     url: Optional[str]
     anon_key: Optional[str]
-    service_role_key: Optional[str]
     redirect_host: str
     redirect_port: int
 
@@ -26,31 +48,6 @@ class SupabaseSettings:
     @property
     def redirect_url(self) -> str:
         return f"http://{self.redirect_host}:{self.redirect_port}/auth/callback"
-
-
-@dataclass(frozen=True)
-class AzureOpenAISettings:
-    endpoint: Optional[str]
-    api_key: Optional[str]
-    deployment: Optional[str]
-    api_version: Optional[str]
-
-    @property
-    def is_configured(self) -> bool:
-        return all((self.endpoint, self.api_key, self.deployment, self.api_version))
-
-    @property
-    def missing_env_vars(self) -> list[str]:
-        missing = []
-        if not self.endpoint:
-            missing.append("AZURE_OPENAI_ENDPOINT")
-        if not self.api_key:
-            missing.append("AZURE_OPENAI_API_KEY")
-        if not self.deployment:
-            missing.append("AZURE_OPENAI_DEPLOYMENT")
-        if not self.api_version:
-            missing.append("AZURE_OPENAI_API_VERSION")
-        return missing
 
 
 @dataclass(frozen=True)
@@ -77,7 +74,7 @@ class StorageSettings:
 
 @dataclass(frozen=True)
 class AppSettings:
-    azure: AzureOpenAISettings
+    llm: LlmSettings
     supabase: SupabaseSettings
     cache: CacheSettings
     ui: UiSettings
@@ -97,17 +94,18 @@ def _timedelta_from_env(name: str, default_days: int) -> timedelta:
 
 @lru_cache(maxsize=1)
 def get_settings() -> AppSettings:
-    azure = AzureOpenAISettings(
-        endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-        deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
-        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
+    llm = LlmSettings(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        model=os.getenv("OPENAI_MODEL", "gpt-5.2"),
+        base_url=os.getenv("OPENAI_BASE_URL"),
+        api_version=os.getenv("OPENAI_API_VERSION"),
+        organization=os.getenv("OPENAI_ORG"),
+        project=os.getenv("OPENAI_PROJECT"),
     )
 
     supabase = SupabaseSettings(
         url=os.getenv("SUPABASE_URL"),
         anon_key=os.getenv("SUPABASE_ANON_KEY"),
-        service_role_key=os.getenv("SUPABASE_SERVICE_ROLE_KEY"),
         redirect_host=os.getenv("SUPABASE_REDIRECT_HOST", "127.0.0.1"),
         redirect_port=int(os.getenv("SUPABASE_REDIRECT_PORT", "52151")),
     )
@@ -131,4 +129,4 @@ def get_settings() -> AppSettings:
         profiles_table=os.getenv("SUPABASE_PROFILES_TABLE", "profiles"),
     )
 
-    return AppSettings(azure=azure, supabase=supabase, cache=cache, ui=ui, storage=storage)
+    return AppSettings(llm=llm, supabase=supabase, cache=cache, ui=ui, storage=storage)

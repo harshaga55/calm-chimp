@@ -5,7 +5,7 @@ import html
 from typing import Any, Dict, List
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import QHBoxLayout, QLineEdit, QPushButton, QTextEdit, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QLineEdit, QPushButton, QTextEdit, QVBoxLayout, QWidget, QLabel
 
 from ...orchestrator import LangGraphOrchestrator
 from ...utils.qt import TaskRunner
@@ -16,6 +16,7 @@ class ChatPanel(QWidget):
 
     def __init__(self, *, orchestrator: LangGraphOrchestrator, runner: TaskRunner) -> None:
         super().__init__()
+        self.setObjectName("chatPanel")
         self.orchestrator = orchestrator
         self.runner = runner
         self.history: List[Dict[str, str]] = []
@@ -24,7 +25,15 @@ class ChatPanel(QWidget):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
 
+        header = QHBoxLayout()
+        header_label = QLabel("Assistant")
+        header_label.setObjectName("subtitle")
+        header.addWidget(header_label)
+        header.addStretch(1)
+        layout.addLayout(header)
+
         self.transcript = QTextEdit()
+        self.transcript.setObjectName("chatTranscript")
         self.transcript.setReadOnly(True)
         self.transcript.setPlaceholderText("Ask the Calm Chimp assistant to plan or summarize events...")
         layout.addWidget(self.transcript)

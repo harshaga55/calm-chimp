@@ -1,8 +1,8 @@
-"""LangGraph / Azure orchestration helpers."""
+"""LLM-first orchestration for Calm Chimp."""
 
 from __future__ import annotations
 
-from .chat import ChatOrchestrator, ChatResult
 from .langgraph import LangGraphOrchestrator
+from .verifiers import VerificationResult
 
-__all__ = ["ChatOrchestrator", "ChatResult", "LangGraphOrchestrator"]
+__all__ = ["LangGraphOrchestrator", "VerificationResult"]

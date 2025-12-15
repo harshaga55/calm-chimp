@@ -4,12 +4,24 @@ import socket
 import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Optional, Tuple
+from typing import Optional
 from urllib.parse import parse_qs, urlparse
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy, QVBoxLayout
+from PyQt6.QtCore import Qt, QRectF, QSize, QPointF
+from PyQt6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSizePolicy,
+    QSpacerItem,
+    QVBoxLayout,
+)
+from PyQt6.QtGui import QIcon, QPixmap, QPainter, QPen, QColor
 
+from ..assets import asset_path
 from ..config.settings import SupabaseSettings
 from ..services import AuthService
 from ..utils.qt import TaskRunner
@@ -60,131 +72,140 @@ def _start_oauth_server(port: int) -> HTTPServer:
     return server
 
 
+def _google_icon(size: int = 22) -> QIcon:
+    pix = QPixmap(size, size)
+    pix.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pix)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    thickness = max(3, size // 5)
+    pen = QPen()
+    pen.setWidth(thickness)
+    rect = QRectF(thickness, thickness, size - thickness * 2, size - thickness * 2)
+    arcs = [
+        ("#4285F4", 300, 110),
+        ("#EA4335", 30, 110),
+        ("#FBBC05", 140, 100),
+        ("#34A853", 230, 100),
+    ]
+    for color, start, span in arcs:
+        pen.setColor(QColor(color))
+        painter.setPen(pen)
+        painter.drawArc(rect, int(start * 16), int(span * 16))
+    pen.setColor(QColor("#4285F4"))
+    painter.setPen(pen)
+    center = rect.center()
+    painter.drawLine(center, QPointF(rect.right(), center.y()))
+    painter.end()
+    return QIcon(pix)
+
+
 class LoginDialog(QDialog):
     def __init__(self, *, auth_service: AuthService, supabase_settings: SupabaseSettings) -> None:
         super().__init__()
+        self.setObjectName("loginDialog")
         self.auth_service = auth_service
         self.supabase_settings = supabase_settings
         self.runner = TaskRunner()
 
         self.setWindowTitle("Calm Chimp — Sign in")
         self.setModal(True)
-        self.setMinimumWidth(520)
+        self.setMinimumSize(640, 520)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(48, 48, 48, 32)
-        layout.setSpacing(16)
-        layout.addStretch(1)
+        layout.setContentsMargins(24, 24, 24, 20)
+        layout.setSpacing(12)
 
-        card = QFrame()
-        card.setObjectName("loginCard")
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(40, 36, 40, 36)
-        card_layout.setSpacing(24)
+        shell = QFrame()
+        shell.setObjectName("loginShell")
+        shell_layout = QVBoxLayout(shell)
+        shell_layout.setContentsMargins(24, 24, 24, 24)
+        shell_layout.setSpacing(10)
 
-        hero = QVBoxLayout()
-        hero.setSpacing(6)
-        hero.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        form_card = QFrame()
+        form_card.setObjectName("loginForm")
+        form_layout = QVBoxLayout(form_card)
+        form_layout.setContentsMargins(28, 32, 28, 28)
+        form_layout.setSpacing(12)
 
-        header = QLabel("Welcome back")
-        header.setObjectName("title")
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hero.addWidget(header)
+        logo_badge = QFrame()
+        logo_badge.setObjectName("logoBadge")
+        logo_badge_layout = QVBoxLayout(logo_badge)
+        logo_badge_layout.setContentsMargins(12, 12, 12, 12)
+        logo_badge_layout.setSpacing(6)
 
-        subtitle = QLabel("Sign in to Sync Supabase Events")
-        subtitle.setObjectName("subtitle")
+        logo = QLabel()
+        logo.setObjectName("brandLogo")
+        logo_pix = QPixmap(asset_path("branding/calm-chimp-logo.webp"))
+        if not logo_pix.isNull():
+            logo.setPixmap(logo_pix.scaled(72, 72, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_badge_layout.addWidget(logo, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        app_name = QLabel("Calm Chimp")
+        app_name.setObjectName("brandName")
+        app_name.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_badge_layout.addWidget(app_name)
+
+        app_tagline = QLabel("Calendar-native workspace with human-friendly AI.")
+        app_tagline.setObjectName("brandTagline")
+        app_tagline.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        app_tagline.setWordWrap(True)
+        logo_badge_layout.addWidget(app_tagline)
+
+        form_layout.addWidget(logo_badge, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        title = QLabel("Welcome to Calm Chimp")
+        title.setObjectName("heroTitle")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        form_layout.addWidget(title)
+
+        subtitle = QLabel(
+            "Keep your calendar organized with a focused workspace.\n"
+            "Plan tasks alongside events with clear, split-pane views.\n"
+            "AI helps summarize days without taking over your agenda.\n"
+            "Your data stays private; revoke access whenever you want.\n"
+            "Continue with Google to sign in securely."
+        )
+        subtitle.setObjectName("heroSubtitle")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hero.addWidget(subtitle)
+        subtitle.setWordWrap(True)
+        form_layout.addWidget(subtitle)
 
-        blurb = QLabel("Connect Calm Chimp to your Supabase workspace to keep calendars and tasks perfectly in sync.")
-        blurb.setObjectName("caption")
-        blurb.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        blurb.setWordWrap(True)
-        hero.addWidget(blurb)
-        card_layout.addLayout(hero)
+        form_layout.addItem(QSpacerItem(0, 4))
 
-        form = QFormLayout()
-        form.setFormAlignment(Qt.AlignmentFlag.AlignHCenter)
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        form.setHorizontalSpacing(14)
-        form.setVerticalSpacing(14)
-        self.email_input = QLineEdit()
-        self.email_input.setPlaceholderText("email@example.com")
-        self.email_input.setClearButtonEnabled(True)
-        self.email_input.returnPressed.connect(self._sign_in)
-        self.email_input.textChanged.connect(self._clear_status)
-        form.addRow("Email", self.email_input)
-
-        self.password_input = QLineEdit()
-        self.password_input.setPlaceholderText("Password")
-        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.password_input.setClearButtonEnabled(True)
-        self.password_input.returnPressed.connect(self._sign_in)
-        self.password_input.textChanged.connect(self._clear_status)
-        form.addRow("Password", self.password_input)
-        card_layout.addLayout(form)
+        pill_row = QFrame()
+        pill_row.setObjectName("pillRow")
+        pill_layout = QHBoxLayout(pill_row)
+        pill_layout.setContentsMargins(6, 6, 6, 6)
+        pill_layout.setSpacing(8)
+        for pill_text in ("OAuth2 secured", "No inbox access", "Sign out anytime"):
+            pill = QLabel(pill_text)
+            pill.setObjectName("featurePill")
+            pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            pill_layout.addWidget(pill)
+        form_layout.addWidget(pill_row)
 
         self.status_label = QLabel("")
         self.status_label.setObjectName("statusLabel")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setWordWrap(True)
         self.status_label.hide()
-        card_layout.addWidget(self.status_label)
-
-        actions = QVBoxLayout()
-        actions.setSpacing(12)
-
-        primary_row = QHBoxLayout()
-        primary_row.setSpacing(12)
-
-        login_btn = QPushButton("Sign In")
-        login_btn.setObjectName("primaryButton")
-        login_btn.setDefault(True)
-        login_btn.clicked.connect(self._sign_in)
-        login_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        primary_row.addWidget(login_btn)
-
-        signup_btn = QPushButton("Create Account")
-        signup_btn.setObjectName("secondaryButton")
-        signup_btn.clicked.connect(self._sign_up)
-        signup_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        primary_row.addWidget(signup_btn)
-        actions.addLayout(primary_row)
-
-        divider_row = QHBoxLayout()
-        divider_row.setSpacing(8)
-        divider_row.setContentsMargins(0, 6, 0, 6)
-
-        divider_left = QFrame()
-        divider_left.setObjectName("divider")
-        divider_left.setFrameShape(QFrame.Shape.NoFrame)
-        divider_left.setFixedHeight(1)
-        divider_row.addWidget(divider_left)
-
-        divider_label = QLabel("or")
-        divider_label.setObjectName("muted")
-        divider_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        divider_row.addWidget(divider_label)
-
-        divider_right = QFrame()
-        divider_right.setObjectName("divider")
-        divider_right.setFrameShape(QFrame.Shape.NoFrame)
-        divider_right.setFixedHeight(1)
-        divider_row.addWidget(divider_right)
-        divider_row.setStretch(0, 1)
-        divider_row.setStretch(2, 1)
-        actions.addLayout(divider_row)
+        form_layout.addWidget(self.status_label)
 
         google_btn = QPushButton("Continue with Google")
         google_btn.setObjectName("googleButton")
         google_btn.clicked.connect(self._sign_in_google)
         google_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         google_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        actions.addWidget(google_btn)
-        card_layout.addLayout(actions)
+        google_btn.setIcon(_google_icon())
+        google_btn.setIconSize(QSize(20, 20))
+        form_layout.addWidget(google_btn)
 
-        layout.addWidget(card, alignment=Qt.AlignmentFlag.AlignHCenter)
-        layout.addStretch(1)
+        form_layout.addStretch(1)
+        shell_layout.addStretch(1)
+        shell_layout.addWidget(form_card, alignment=Qt.AlignmentFlag.AlignCenter)
+        shell_layout.addStretch(1)
+        layout.addWidget(shell)
 
         footer = QHBoxLayout()
         footer.addStretch(1)
@@ -193,11 +214,11 @@ class LoginDialog(QDialog):
         footer.addWidget(cancel)
         layout.addLayout(footer)
 
-        self._action_buttons = [login_btn, signup_btn, google_btn]
+        self._action_buttons = [google_btn]
         self._status_kind = "info"
-        self._default_status = "Enter your Supabase credentials to continue."
+        self._default_status = "Continue with Google to connect your cloud workspace."
         self._set_status(self._default_status)
-        self.email_input.setFocus()
+        google_btn.setFocus()
 
     # ------------------------------------------------------------------ helpers
 
@@ -208,9 +229,9 @@ class LoginDialog(QDialog):
             return
 
         styles = {
-            "info": ("#cbd5f5", "#1a283d", "#273852"),
-            "success": ("#70e000", "#17321c", "#275d30"),
-            "error": ("#ef233c", "#3a181f", "#55202c"),
+            "info": ("#e0e7ff", "#111a2e", "#1f2a44"),
+            "success": ("#4ade80", "#11261a", "#1f3d29"),
+            "error": ("#f87171", "#2e1114", "#4e1c22"),
         }
         color, background, border = styles.get(kind, styles["info"])
         stylesheet = (
@@ -224,20 +245,9 @@ class LoginDialog(QDialog):
         self.status_label.setText(message)
         self.status_label.show()
 
-    def _clear_status(self) -> None:
-        if getattr(self, "_status_kind", "") == "error":
-            self._set_status(self._default_status)
-
     def _set_busy(self, busy: bool) -> None:
-        for widget in (self.email_input, self.password_input, *self._action_buttons):
+        for widget in self._action_buttons:
             widget.setEnabled(not busy)
-
-    def _credentials(self) -> Tuple[str, str]:
-        email = self.email_input.text().strip()
-        password = self.password_input.text()
-        if not email or not password:
-            raise ValueError("Email and password are required.")
-        return email, password
 
     def _handle_error(self, exc: Exception) -> None:
         self._set_busy(False)
@@ -252,38 +262,6 @@ class LoginDialog(QDialog):
         self.accept()
 
     # ------------------------------------------------------------------ slots
-
-    def _sign_in(self) -> None:
-        try:
-            email, password = self._credentials()
-        except ValueError as exc:
-            self._set_status(str(exc), kind="error")
-            return
-        self._set_busy(True)
-        self._set_status("Signing you in...", kind="info")
-
-        def worker() -> object:
-            return self.auth_service.sign_in_with_password(email, password)
-
-        self.runner.submit(worker, on_success=self._finish_sign_in, on_error=self._handle_error)
-
-    def _sign_up(self) -> None:
-        try:
-            email, password = self._credentials()
-        except ValueError as exc:
-            self._set_status(str(exc), kind="error")
-            return
-        self._set_busy(True)
-        self._set_status("Creating your account...", kind="info")
-
-        def worker() -> object:
-            return self.auth_service.sign_up_with_password(email, password)
-
-        def done(_result: object) -> None:
-            self._set_busy(False)
-            self._set_status("Account created. Please verify your email then sign in.", kind="success")
-
-        self.runner.submit(worker, on_success=done, on_error=self._handle_error)
 
     def _sign_in_google(self) -> None:
         if not self.supabase_settings.is_configured:

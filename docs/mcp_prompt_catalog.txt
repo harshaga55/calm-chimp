@@ -1,7 +1,7 @@
 Calm Chimp MCP Prompt Catalog
 =============================
 
-Use these patterns to steer the Azure + LangGraph orchestrator toward the Supabase tools exposed by the new deterministic API.
+Use these patterns to steer the GPT tool-caller (OpenAI/Azure-compatible) toward the Supabase tools exposed by the deterministic API.
 
 Prompt Playbook
 ---------------

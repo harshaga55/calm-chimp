@@ -1,13 +1,13 @@
 # Calm Chimp — Supabase Calendar Copilot
 
-Calm Chimp is now a Supabase-first, multi-user calendar workspace. A streamlined PyQt desktop app, Azure-powered orchestration layer, and deterministic API surface let every authenticated user plan events, manage categories, and chat with the assistant without losing momentum. The UI keeps the timeline, category controls, and chat side-by-side so the assistant never blocks your view of upcoming work.
+Calm Chimp is a Supabase-first, multi-user calendar workspace. A streamlined PyQt desktop app, a lean GPT-5.2 tool-calling layer, and a deterministic API surface let every authenticated user plan events, manage categories, and chat with the assistant without losing momentum. The UI keeps the timeline, category controls, and chat side-by-side so the assistant never blocks your view of upcoming work.
 
 ## ✨ Highlights
+- **Frontier model tool-calling**: the chat panel now uses GPT-5.2 (or any configured OpenAI model) with a single-step, single-tool prompt for reliable execution.
 - **Supabase-native storage**: email/password or Google login is the first screen. The client hydrates one year back and one year forward on sign-in, then serves everything from the in-memory cache for speed.
-- **Split-pane productivity UI**: left sidebar for profile & categories, center timeline for daily context, right assistant panel for LangGraph-driven chat. Each runs async through a task runner so Supabase calls never freeze the GUI.
-- **Deterministic APIs → MCP tools**: a minimal API catalog (`events_for_day`, `upsert_event`, `list_categories`, and friends) powers the local FastAPI server, FastMCP streamable server, and the LangGraph orchestrator.
-- **Azure OpenAI orchestration**: when Azure credentials are present the chat panel routes through GPT via LangGraph, otherwise keyword heuristics keep tools accessible offline.
-- **Configurable caching + themes**: environment-driven cache windows, table names, and a refreshed midnight gradient palette keep the UI readable and fast.
+- **Split-pane productivity UI**: left sidebar for profile & categories, center timeline for daily context, right assistant panel for thin-orchestrated chat. Each runs async through a task runner so Supabase calls never freeze the GUI.
+- **Deterministic APIs → MCP tools**: a minimal API catalog (`events_for_day`, `upsert_event`, `list_categories`, and friends) powers the local FastAPI server, FastMCP streamable server, and the new OpenAI tool payloads.
+- **Telemetry + verification**: every tool run is logged under `logs/agent_runs` with lightweight verifiers so you can replay or benchmark agent quality.
 
 ## 🧱 New Project Layout
 ```
@@ -23,7 +23,7 @@ src/calm_chimp/
 ├── config/                 # settings + palette
 ├── data/                   # Supabase gateway, repositories, cache
 ├── domain/                 # calendar + category dataclasses
-├── orchestrator/           # Azure + LangGraph orchestration
+├── orchestrator/           # Lean OpenAI orchestration + verifiers
 ├── services/               # auth, calendar, categories, MCP/HTTP servers
 ├── ui/                     # PyQt login workflow & split-pane shell
 └── utils/                  # Qt task runner helpers
@@ -32,7 +32,7 @@ src/calm_chimp/
 ## 🚀 Getting Started
 ```bash
 poetry install
-cp .env.example .env   # fill in Supabase + Azure values
+cp .env.example .env   # fill in Supabase + OpenAI values
 poetry run calm-chimp gui
 ```
 
@@ -44,7 +44,7 @@ poetry run calm-chimp gui
 | `SUPABASE_EVENTS_TABLE` | Defaults to `calendar_events` |
 | `SUPABASE_CATEGORIES_TABLE` | Defaults to `event_categories` |
 | `SUPABASE_PROFILES_TABLE` | Defaults to `profiles` |
-| `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_API_KEY` / `AZURE_OPENAI_DEPLOYMENT` / `AZURE_OPENAI_API_VERSION` | Enable Azure orchestration |
+| `OPENAI_API_KEY`, `OPENAI_MODEL` (`gpt-5.2` default), `OPENAI_BASE_URL` (optional), `OPENAI_API_VERSION` (optional, e.g., Azure deployments) | Enable GPT orchestration |
 | `CALM_CACHE_WINDOW_BEFORE_DAYS` / `CALM_CACHE_WINDOW_AFTER_DAYS` | Control cache horizon |
 
 ### Supabase schema snapshot
@@ -74,7 +74,7 @@ The FastAPI bridge exposes them under `/api/functions/{name}`. The MCP server mi
 ### Desktop experience
 1. **Login dialog** — email/password or Google OAuth. Authentication wires the Supabase session into the shared service context and clears stale caches.
 2. **Timeline view** — calendar & event list stay visible while the assistant works. Cache hydrates ±365 days on first load.
-3. **Assistant panel** — LangGraph orchestrator executes tools in background threads; results flow both into the transcript and back to the timeline or category panes when relevant.
+3. **Assistant panel** — the GPT-5.2 tool caller executes exactly one function per turn; results flow both into the transcript and back to the timeline or category panes when relevant.
 4. **Category & event editors** — quick dialogs keep optional metadata flexible while enforcing only the essentials (title & schedule).
 
 ## 🧪 Validation

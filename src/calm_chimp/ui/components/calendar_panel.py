@@ -24,6 +24,7 @@ class CalendarPanel(QWidget):
 
     def __init__(self) -> None:
         super().__init__()
+        self.setObjectName("calendarPanel")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
